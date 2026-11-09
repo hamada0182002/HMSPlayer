@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -276,10 +278,10 @@ fun DialogShell(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Surface(
-                Modifier.fillMaxWidth(widthFraction),
+                Modifier.fillMaxWidth(if (isCompact()) maxOf(widthFraction, 0.92f) else widthFraction),
                 shape = RoundedCornerShape(22.dp), color = Surface1, contentColor = TextMain
             ) {
-                Column(Modifier.padding(20.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(12.dp))
                     content()

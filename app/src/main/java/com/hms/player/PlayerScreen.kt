@@ -16,6 +16,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -138,7 +141,6 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
         onDispose {
             lc?.removeObserver(ob)
             w?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            c?.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -211,6 +213,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(140.dp)
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .85f)))))
 
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
                     // top bar
                     Row(
                         Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -270,6 +273,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                             Text(if (ctl.dur > 0) fmtTime(ctl.dur) else "--:--", color = Color.White, fontSize = 13.sp,
                                 modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                         }
+                    }
                     }
                 }
             }

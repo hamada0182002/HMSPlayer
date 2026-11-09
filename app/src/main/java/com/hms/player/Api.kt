@@ -103,11 +103,13 @@ object Api {
                 Section.LIVE -> Item(o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s)
                 Section.VOD -> Item(
                     o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s,
-                    rating = o.str("rating"), ext = o.str("container_extension").ifBlank { "mp4" }
+                    rating = o.str("rating"), ext = o.str("container_extension").ifBlank { "mp4" },
+                    added = o.str("added").toLongOrNull() ?: 0
                 )
                 Section.SERIES -> Item(
                     o.str("series_id"), o.str("name"), o.str("cover").ifBlank { null }, s,
-                    rating = o.str("rating"), plot = o.str("plot")
+                    rating = o.str("rating"), plot = o.str("plot"),
+                    added = o.str("last_modified").toLongOrNull() ?: o.str("added").toLongOrNull() ?: 0
                 )
             }
         }

@@ -145,18 +145,32 @@ private fun AccountDialog(vm: AppVM, existing: Account?, onDismiss: () -> Unit) 
         focusedLabelColor = OrangeSoft, cursorColor = Orange
     )
 
+    val compact = isCompact()
     DialogShell(if (existing == null) "إضافة حساب Xtream" else "تعديل الحساب", { if (!busy) onDismiss() }, 0.78f) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(name, { name = it }, Modifier.weight(1f), label = { Text("اسم الحساب (اختياري)") }, singleLine = true, textStyle = ltr, colors = colors)
+        val fName: @Composable (Modifier) -> Unit = { m ->
+            OutlinedTextField(name, { name = it }, m, label = { Text("اسم الحساب (اختياري)") }, singleLine = true, textStyle = ltr, colors = colors)
+        }
+        val fServer: @Composable (Modifier) -> Unit = { m ->
             OutlinedTextField(
-                server, { server = it }, Modifier.weight(1.4f), label = { Text("رابط السيرفر  http://example.com:8080") },
+                server, { server = it }, m, label = { Text("رابط السيرفر  http://example.com:8080") },
                 singleLine = true, textStyle = ltr, colors = colors, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(user, { user = it }, Modifier.weight(1f), label = { Text("اليوزر") }, singleLine = true, textStyle = ltr, colors = colors)
-            OutlinedTextField(pass, { pass = it }, Modifier.weight(1f), label = { Text("الباسورد") }, singleLine = true, textStyle = ltr, colors = colors)
+        val fUser: @Composable (Modifier) -> Unit = { m ->
+            OutlinedTextField(user, { user = it }, m, label = { Text("اليوزر") }, singleLine = true, textStyle = ltr, colors = colors)
+        }
+        val fPass: @Composable (Modifier) -> Unit = { m ->
+            OutlinedTextField(pass, { pass = it }, m, label = { Text("الباسورد") }, singleLine = true, textStyle = ltr, colors = colors)
+        }
+        if (compact) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                fName(Modifier.fillMaxWidth()); fServer(Modifier.fillMaxWidth())
+                fUser(Modifier.fillMaxWidth()); fPass(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { fName(Modifier.weight(1f)); fServer(Modifier.weight(1.4f)) }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { fUser(Modifier.weight(1f)); fPass(Modifier.weight(1f)) }
         }
         err?.let { Text(it, color = Danger, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(14.dp))

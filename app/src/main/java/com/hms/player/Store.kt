@@ -1,6 +1,7 @@
 package com.hms.player
 
 import android.content.Context
+import android.content.pm.PackageManager
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -30,6 +31,17 @@ class Store(ctx: Context) {
     var activeId: String?
         get() = sp.getString("active", null)
         set(v) { sp.edit().putString("active", v).apply() }
+
+    var deviceMode: String?
+        get() = sp.getString("device", null)
+        set(v) { sp.edit().putString("device", v).apply() }
+
+    /** Saved choice, otherwise auto-detect (Android TV = TV, everything else = phone). */
+    fun mode(ctx: Context): DeviceMode = when (deviceMode) {
+        "tv" -> DeviceMode.TV
+        "phone" -> DeviceMode.PHONE
+        else -> if (ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) DeviceMode.TV else DeviceMode.PHONE
+    }
 
     var resizeMode: Int
         get() = sp.getInt("resize", 0)
