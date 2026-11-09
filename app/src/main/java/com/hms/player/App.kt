@@ -13,6 +13,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import android.content.pm.ActivityInfo
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -48,10 +53,20 @@ fun HmsApp(vm: AppVM) {
                 var splash by remember { mutableStateOf(true) }
                 LaunchedEffect(Unit) { delay(1500); splash = false }
 
+                // phone: app is vertical, playback is horizontal. TV: everything horizontal.
+                val act = LocalContext.current.findActivity()
+                val playing = vm.player != null
+                LaunchedEffect(vm.deviceMode, playing) {
+                    act?.requestedOrientation =
+                        if (vm.deviceMode == DeviceMode.TV || playing) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                }
+
                 BackHandler(enabled = vm.player == null && vm.stack.size > 1) { vm.pop() }
 
                 Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
+                        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                         targetState = vm.stack.last(),
                         transitionSpec = {
                             if (vm.forward)

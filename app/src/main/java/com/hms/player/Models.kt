@@ -1,5 +1,7 @@
 package com.hms.player
 
+enum class DeviceMode { PHONE, TV }
+
 enum class Section(val title: String) {
     LIVE("مباشر"), VOD("أفلام"), SERIES("مسلسلات")
 }
@@ -21,7 +23,8 @@ data class Item(
     val section: Section,
     val rating: String? = null,
     val ext: String? = null,
-    val plot: String? = null
+    val plot: String? = null,
+    val added: Long = 0
 )
 
 data class Episode(

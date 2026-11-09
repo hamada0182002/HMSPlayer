@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.CancellationException
 import org.json.JSONException
 import java.net.ConnectException
@@ -70,3 +71,7 @@ fun <T> produceLoad(key: Any?, retry: Int = 0, block: suspend () -> T): Load<T> 
     }
     return s.value
 }
+
+/** Phone held vertically (narrow) -> compact layouts. Wide screens (landscape / TV) use the wide layouts. */
+@Composable
+fun isCompact(): Boolean = LocalConfiguration.current.screenWidthDp < 600

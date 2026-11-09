@@ -1,43 +1,38 @@
 package com.hms.player
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.io.File
+
+@Composable
+private fun SettingCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Surface1) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, color = OrangeSoft, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            content()
+        }
+    }
+}
 
 @Composable
 fun SettingsScreen(vm: AppVM) {
@@ -49,34 +44,46 @@ fun SettingsScreen(vm: AppVM) {
 
     Column(Modifier.fillMaxSize()) {
         TopBar("الإعدادات", onBack = { vm.pop() })
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Surface1) {
-                Column(Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.logo_mark), null, Modifier.size(52.dp))
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("HMS Player", style = TextStyle(brush = BrandBrush, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold))
-                            Text("الإصدار الحالي: ${Updater.currentVersion(ctx)}", color = TextMuted, fontSize = 14.sp)
-                        }
-                        if (checking) CircularProgressIndicator(Modifier.size(28.dp), color = Orange, strokeWidth = 3.dp)
-                        else HmsButton("التحقق من التحديث", icon = Icons.Default.SystemUpdate) {
-                            checking = true; msg = null
-                            scope.launch {
-                                try {
-                                    val u = Updater.check(ctx)
-                                    if (u == null) msg = "إنت على آخر إصدار ✓" else found = u
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    msg = friendly(e)
-                                }
-                                checking = false
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            SettingCard("الحسابات") {
+                Text("الحساب الحالي: ${vm.active?.name ?: "—"}   •   عدد الحسابات: ${vm.accounts.size}", color = TextMain, fontSize = 14.sp)
+                HmsButton("إدارة الحسابات", icon = Icons.Default.ManageAccounts) { vm.push(Screen.Accounts) }
+            }
+
+            SettingCard("نوع الجهاز") {
+                Text(
+                    "موبايل: التطبيق بالطول، والتشغيل بالعرض.\nتلفزيون: كل حاجة بالعرض.",
+                    color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HmsButton("موبايل", icon = Icons.Default.Smartphone, primary = vm.deviceMode == DeviceMode.PHONE) { vm.changeMode(DeviceMode.PHONE) }
+                    HmsButton("تلفزيون", icon = Icons.Default.Tv, primary = vm.deviceMode == DeviceMode.TV) { vm.changeMode(DeviceMode.TV) }
+                }
+            }
+
+            SettingCard("التحديث") {
+                Text("الإصدار الحالي: ${Updater.currentVersion(ctx)}", color = TextMain, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (checking) CircularProgressIndicator(Modifier.size(28.dp), color = Orange, strokeWidth = 3.dp)
+                    else HmsButton("التحقق من التحديث", icon = Icons.Default.SystemUpdate) {
+                        checking = true; msg = null
+                        scope.launch {
+                            try {
+                                val u = Updater.check(ctx)
+                                if (u == null) msg = "إنت على آخر إصدار ✓" else found = u
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                msg = friendly(e)
                             }
+                            checking = false
                         }
                     }
-                    msg?.let { Text(it, color = if (it.contains("✓")) Ok else OrangeSoft, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp)) }
                 }
+                msg?.let { Text(it, color = if (it.contains("✓")) Ok else OrangeSoft, fontSize = 14.sp) }
             }
         }
     }

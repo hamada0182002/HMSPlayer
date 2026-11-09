@@ -17,6 +17,13 @@ class AppVM(app: Application) : AndroidViewModel(app) {
 
     var accounts by mutableStateOf(store.accounts())
         private set
+    var deviceMode by mutableStateOf(store.mode(app))
+        private set
+    fun changeMode(m: DeviceMode) {
+        deviceMode = m
+        store.deviceMode = if (m == DeviceMode.TV) "tv" else "phone"
+    }
+
     var active by mutableStateOf<Account?>(null)
         private set
     var info by mutableStateOf<AccountInfo?>(null)
