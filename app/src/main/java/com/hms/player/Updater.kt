@@ -18,9 +18,9 @@ import java.util.concurrent.TimeUnit
 
 /**
  * >>> غيّر السطر ده مرة واحدة فقط: اسم حسابك على GitHub / اسم المستودع <<<
- * مثال: "ahmed/hms-player"   (لازم المستودع يكون Public)
+ * (لازم المستودع يكون Public)
  */
-const val GITHUB_REPO = "OWNER/REPO"
+const val GITHUB_REPO = "hamada0182002/HMSPlayer"
 
 data class UpdateInfo(val version: String, val notes: String, val apkUrl: String, val size: Long)
 
