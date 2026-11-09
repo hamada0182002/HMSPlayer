@@ -65,12 +65,19 @@ object Updater {
             val j = JSONObject(r.body!!.string())
             val tag = j.optString("tag_name").trim().trimStart('v', 'V')
             val assets = j.optJSONArray("assets")
+            // pick the APK that belongs to THIS release's version (a release may hold older APKs too)
             var url = ""
             var size = 0L
+            var bestScore = -1L
             if (assets != null) for (i in 0 until assets.length()) {
                 val a = assets.optJSONObject(i) ?: continue
-                if (a.optString("name").endsWith(".apk", true)) {
-                    url = a.optString("browser_download_url"); size = a.optLong("size"); break
+                val name = a.optString("name")
+                if (!name.endsWith(".apk", true)) continue
+                val score = (if (name.contains(tag)) 1_000_000_000_000L else 0L) +
+                    a.optString("updated_at").filter(Char::isDigit).toLongOrNull().let { it ?: 0L } / 100_000
+                if (score > bestScore) {
+                    bestScore = score
+                    url = a.optString("browser_download_url"); size = a.optLong("size")
                 }
             }
             if (tag.isEmpty() || url.isEmpty() || !isNewer(tag, currentVersion(ctx))) null
