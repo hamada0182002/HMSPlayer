@@ -18,6 +18,9 @@ import kotlin.coroutines.resumeWithException
 
 const val UA = "HMSPlayer/1.0"
 
+/** What we send to the IPTV server: same kind of UA the old web page sent (a normal browser). */
+const val IPTV_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
 class AuthException : IOException("auth")
 
 private fun JSONObject.str(k: String): String {
@@ -42,7 +45,7 @@ object Api {
     private suspend fun fetch(url: String, readSec: Long): String =
         suspendCancellableCoroutine { cont ->
             val call = client.newBuilder().readTimeout(readSec, TimeUnit.SECONDS).build()
-                .newCall(Request.Builder().url(url).header("User-Agent", UA).build())
+                .newCall(Request.Builder().url(url).header("User-Agent", IPTV_UA).build())
             cont.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {

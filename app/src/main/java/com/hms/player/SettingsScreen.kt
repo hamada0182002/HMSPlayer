@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tv
@@ -138,6 +139,19 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
                 else HmsButton("تحديث الآن", icon = Icons.Default.SystemUpdate) { start() }
                 HmsButton("لاحقاً", primary = false, onClick = onDismiss)
             }
+        }
+    }
+}
+
+@Composable
+fun BusyDialog(msg: String, onRetry: () -> Unit, onForce: () -> Unit, onCancel: () -> Unit) {
+    DialogShell("الحساب مشغول", onCancel, 0.6f) {
+        Text(msg, color = TextMuted, fontSize = 14.sp, lineHeight = 22.sp)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HmsButton("إعادة المحاولة", icon = Icons.Default.Replay) { onRetry() }
+            HmsButton("شغّل رغم كده", primary = false, onClick = onForce)
+            HmsButton("إلغاء", primary = false, onClick = onCancel)
         }
     }
 }

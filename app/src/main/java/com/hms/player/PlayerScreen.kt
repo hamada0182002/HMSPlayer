@@ -136,7 +136,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
         c?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         c?.hide(WindowInsetsCompat.Type.systemBars())
         val lc = (act as? LifecycleOwner)?.lifecycle
-        val ob = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP) ctl.player.pause() }
+        val ob = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP) ctl.suspendStream() }
         lc?.addObserver(ob)
         onDispose {
             lc?.removeObserver(ob)
@@ -156,7 +156,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                     val live = ctl.cur.live
                     when (ev.key) {
                         Key.MediaPlayPause -> { ctl.toggle(); true }
-                        Key.MediaPlay -> { ctl.player.play(); true }
+                        Key.MediaPlay -> { ctl.playNow(); true }
                         Key.MediaPause -> { ctl.player.pause(); true }
                         Key.MediaStop -> { ctl.close(); true }
                         Key.MediaRewind -> { if (!live) ctl.seekBy(-30_000); true }

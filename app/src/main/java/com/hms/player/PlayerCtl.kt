@@ -45,7 +45,7 @@ class PlayerCtl(
         .setMediaSourceFactory(
             DefaultMediaSourceFactory(ctx).setDataSourceFactory(
                 DefaultHttpDataSource.Factory()
-                    .setUserAgent(UA)
+                    .setUserAgent(IPTV_UA)
                     .setAllowCrossProtocolRedirects(true)
                     .setConnectTimeoutMs(15_000)
                     .setReadTimeoutMs(20_000)
@@ -193,6 +193,23 @@ class PlayerCtl(
 
     fun next() { if (hasNext) play(index + 1) }
     fun prev() { if (hasPrev) play(index - 1) }
+
+    /**
+     * App went to background / screen off: really close the HTTP connection.
+     * (A paused player keeps its socket open, so the server keeps counting this device.)
+     */
+    fun suspendStream() {
+        job?.cancel()
+        saveNow()
+        player.playWhenReady = false
+        player.stop()
+        message = null
+    }
+
+    fun playNow() {
+        if (player.playbackState == Player.STATE_IDLE) { retry = 0; failed = false; player.prepare() }
+        player.play()
+    }
 
     fun toggle() {
         if (player.isPlaying) player.pause()

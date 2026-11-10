@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class AppVM(app: Application) : AndroidViewModel(app) {
@@ -137,11 +138,69 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun openPlayer(items: List<PlayItem>, index: Int, fromStart: Boolean = false) {
-        if (index in items.indices) player = PlayerRequest(items, index, fromStart)
+    /** Fresh server numbers (active_cons / max_connections). */
+    fun refreshInfo() {
+        val a = active ?: return
+        viewModelScope.launch {
+            val i = try { Api.info(a) } catch (e: Exception) { null }
+            if (i != null && active?.id == a.id) info = i
+        }
     }
 
-    fun closePlayer() { player = null; progressTick++ }
+    /** Non-null while the "line is busy" dialog is showing. */
+    var busy by mutableStateOf<String?>(null)
+        private set
+    var checking by mutableStateOf(false)
+        private set
+    private var pendingPlay: Triple<List<PlayItem>, Int, Boolean>? = null
+
+    /**
+     * Before opening a NEW stream we ask the server how many connections are live.
+     * If the line is already full we do NOT connect: with max_connections = 1 a second
+     * connection makes the server cut everybody. If the check itself fails (offline /
+     * panel doesn't report it) we just play.
+     */
+    fun openPlayer(items: List<PlayItem>, index: Int, fromStart: Boolean = false) {
+        if (index !in items.indices || player != null || checking) return
+        val a = active
+        if (a == null) { player = PlayerRequest(items, index, fromStart); return }
+        checking = true
+        viewModelScope.launch {
+            val inf = try { Api.info(a) } catch (e: Exception) { null }
+            checking = false
+            if (inf != null) info = inf
+            val max = inf?.maxConn?.toIntOrNull()
+            val act = inf?.activeConn?.toIntOrNull()
+            if (max != null && max > 0 && act != null && act >= max) {
+                pendingPlay = Triple(items, index, fromStart)
+                busy = "الحساب مشغول دلوقتي ($act/$max) — في جهاز تاني بيشغّل. ممكن لو شغّلت يقطع البث عن الكل.\n" +
+                    "استنى لحد ما اللي بيشاهد يقفل، وبعدين اضغط إعادة المحاولة (ممكن ياخد كام ثانية يتحدّث)."
+            } else {
+                player = PlayerRequest(items, index, fromStart)
+            }
+        }
+    }
+
+    fun retryBusy() {
+        val p = pendingPlay ?: run { busy = null; return }
+        busy = null
+        openPlayer(p.first, p.second, p.third)
+    }
+
+    /** The user decided to play anyway (some panels report active_cons but don't enforce it). */
+    fun forcePlay() {
+        val p = pendingPlay ?: run { busy = null; return }
+        busy = null; pendingPlay = null
+        player = PlayerRequest(p.first, p.second, p.third)
+    }
+
+    fun dismissBusy() { busy = null; pendingPlay = null }
+
+    fun closePlayer() {
+        player = null; progressTick++
+        // the server needs a few seconds to drop our connection, then update the 0/1 counter
+        viewModelScope.launch { delay(4_000); refreshInfo() }
+    }
 
     /** Resume from the "continue watching" list (loads the rest of the series when possible). */
     fun resume(p: Progress) {
