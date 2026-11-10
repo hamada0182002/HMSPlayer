@@ -94,8 +94,6 @@ fun HmsApp(vm: AppVM) {
                     val up = vm.pendingUpdate
                     if (up != null && !splash && vm.player == null) UpdateDialog(up) { vm.dismissUpdate() }
 
-                    vm.busy?.let { m -> BusyDialog(m, { vm.retryBusy() }, { vm.forcePlay() }, { vm.dismissBusy() }) }
-
                     AnimatedVisibility(splash, enter = fadeIn(), exit = fadeOut(tween(450))) { Splash() }
                 }
             }

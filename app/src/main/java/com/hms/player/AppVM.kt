@@ -147,54 +147,10 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Non-null while the "line is busy" dialog is showing. */
-    var busy by mutableStateOf<String?>(null)
-        private set
-    var checking by mutableStateOf(false)
-        private set
-    private var pendingPlay: Triple<List<PlayItem>, Int, Boolean>? = null
-
-    /**
-     * Before opening a NEW stream we ask the server how many connections are live.
-     * If the line is already full we do NOT connect: with max_connections = 1 a second
-     * connection makes the server cut everybody. If the check itself fails (offline /
-     * panel doesn't report it) we just play.
-     */
+    /** Always plays immediately — no pre-check, no warning dialog. */
     fun openPlayer(items: List<PlayItem>, index: Int, fromStart: Boolean = false) {
-        if (index !in items.indices || player != null || checking) return
-        val a = active
-        if (a == null) { player = PlayerRequest(items, index, fromStart); return }
-        checking = true
-        viewModelScope.launch {
-            val inf = try { Api.info(a) } catch (e: Exception) { null }
-            checking = false
-            if (inf != null) info = inf
-            val max = inf?.maxConn?.toIntOrNull()
-            val act = inf?.activeConn?.toIntOrNull()
-            if (max != null && max > 0 && act != null && act >= max) {
-                pendingPlay = Triple(items, index, fromStart)
-                busy = "الحساب مشغول دلوقتي ($act/$max) — في جهاز تاني بيشغّل. ممكن لو شغّلت يقطع البث عن الكل.\n" +
-                    "استنى لحد ما اللي بيشاهد يقفل، وبعدين اضغط إعادة المحاولة (ممكن ياخد كام ثانية يتحدّث)."
-            } else {
-                player = PlayerRequest(items, index, fromStart)
-            }
-        }
+        if (index in items.indices) player = PlayerRequest(items, index, fromStart)
     }
-
-    fun retryBusy() {
-        val p = pendingPlay ?: run { busy = null; return }
-        busy = null
-        openPlayer(p.first, p.second, p.third)
-    }
-
-    /** The user decided to play anyway (some panels report active_cons but don't enforce it). */
-    fun forcePlay() {
-        val p = pendingPlay ?: run { busy = null; return }
-        busy = null; pendingPlay = null
-        player = PlayerRequest(p.first, p.second, p.third)
-    }
-
-    fun dismissBusy() { busy = null; pendingPlay = null }
 
     fun closePlayer() {
         player = null; progressTick++
