@@ -53,18 +53,18 @@ fun BrowseScreen(vm: AppVM, section: Section) {
             if (searching) {
                 SearchField(query, { query = it; searchAll = false }, Modifier.width(if (compact) 200.dp else 260.dp))
                 Spacer(Modifier.width(8.dp))
-                IconBtn(Icons.Default.Close, "إغلاق البحث") { searching = false; query = ""; searchAll = false }
+                IconBtn(Icons.Default.Close, tr("إغلاق البحث", "Close search")) { searching = false; query = ""; searchAll = false }
             } else {
-                IconBtn(Icons.Default.Search, "بحث") { searching = true }
+                IconBtn(Icons.Default.Search, tr("بحث", "Search")) { searching = true }
             }
         }
         when (val c = cats) {
             is Load.Loading -> LoadingBox()
             is Load.Err -> ErrorBox(c.msg) { retry++ }
             is Load.Ok -> {
-                val base = c.v.ifEmpty { listOf(Category("", "الكل")) }
+                val base = c.v.ifEmpty { listOf(Category("", tr("الكل", "All"))) }
                 // movies & series get a "recently added" list at the top
-                val list = if (section == Section.LIVE) base else listOf(Category(RECENT, "🆕 مضاف حديثاً")) + base
+                val list = if (section == Section.LIVE) base else listOf(Category(RECENT, tr("🆕 مضاف حديثاً", "🆕 Recently added"))) + base
                 BrowseBody(vm, section, list, query, searchAll, compact) { searchAll = true }
             }
         }
@@ -83,7 +83,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Mod
             .background(Surface2, RoundedCornerShape(21.dp)).padding(horizontal = 16.dp),
         decorationBox = { inner ->
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text("ابحث بالاسم...", color = TextMuted, fontSize = 15.sp)
+                if (value.isEmpty()) Text(tr("ابحث بالاسم...", "Search by name..."), color = TextMuted, fontSize = 15.sp)
                 inner()
             }
         }
@@ -195,7 +195,7 @@ private fun ItemsPane(
     gs: LazyGridState, firstFr: FocusRequester, onRetry: () -> Unit, onSearchAll: () -> Unit
 ) {
     when (load) {
-        is Load.Loading -> LoadingBox(if (allMode) "جاري تحميل القسم كله...\n(ممكن ياخد وقت حسب حجم القائمة)" else "جاري التحميل...")
+        is Load.Loading -> LoadingBox(if (allMode) tr("جاري تحميل القسم كله...\n(ممكن ياخد وقت حسب حجم القائمة)", "Loading the whole section...\n(may take a while depending on the list size)") else tr("جاري التحميل...", "Loading..."))
         is Load.Err -> ErrorBox(load.msg, onRetry)
         is Load.Ok -> {
             val all = load.v
@@ -214,12 +214,12 @@ private fun ItemsPane(
             Column(Modifier.fillMaxSize()) {
                 if (q.isNotEmpty() && !searchAll && !isRecent) {
                     Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${shown.size} نتيجة في القسم الحالي", color = TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        HmsButton("ابحث في كل القسم", primary = false, onClick = onSearchAll)
+                        Text(tr("${shown.size} نتيجة في القسم الحالي", "${shown.size} results in this section"), color = TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        HmsButton(tr("ابحث في كل القسم", "Search the whole section"), primary = false, onClick = onSearchAll)
                     }
                 }
                 if (shown.isEmpty()) {
-                    EmptyBox(if (q.isEmpty()) "مفيش حاجة هنا" else "مفيش نتايج")
+                    EmptyBox(if (q.isEmpty()) tr("مفيش حاجة هنا", "Nothing here") else tr("مفيش نتايج", "No results"))
                 } else {
                     LazyVerticalGrid(
                         GridCells.Adaptive(if (isLive) 140.dp else 112.dp),

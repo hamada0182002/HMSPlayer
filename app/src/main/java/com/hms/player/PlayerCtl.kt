@@ -73,6 +73,9 @@ class PlayerCtl(
         private set
     var videoSize by mutableStateOf("")
         private set
+    /** width / height of the current video (used for the picture-in-picture window shape). */
+    var videoRatio by mutableFloatStateOf(16f / 9f)
+        private set
     var speed by mutableFloatStateOf(1f)
         private set
     var resize by mutableIntStateOf(vm.store.resizeMode)
@@ -110,6 +113,7 @@ class PlayerCtl(
 
             override fun onVideoSizeChanged(v: VideoSize) {
                 videoSize = if (v.width > 0) "${v.width}×${v.height}" else ""
+                if (v.width > 0 && v.height > 0) videoRatio = v.width * v.pixelWidthHeightRatio / v.height
             }
         })
     }
@@ -149,11 +153,13 @@ class PlayerCtl(
         if (retry > limit) {
             failed = true
             message = if (!everPlayed && !it.live)
-                "الملف مش شغال (${e?.errorCodeName ?: "?"}). غالباً عدد الأجهزة المسموح بيها في اشتراكك اتملى، أو الملف معطّل، أو صيغته مش مدعومة."
-            else "تعذّر تشغيل البث (${e?.errorCodeName ?: "?"}). اتأكد من الإنترنت واضغط إعادة المحاولة."
+                tr("الملف مش شغال (${e?.errorCodeName ?: "?"}). غالباً عدد الأجهزة المسموح بيها في اشتراكك اتملى، أو الملف معطّل، أو صيغته مش مدعومة.",
+                    "This file won't play (${e?.errorCodeName ?: "?"}). Most likely the device limit of your subscription is full, the file is disabled, or its format isn't supported.")
+            else tr("تعذّر تشغيل البث (${e?.errorCodeName ?: "?"}). اتأكد من الإنترنت واضغط إعادة المحاولة.",
+                "Couldn't play the stream (${e?.errorCodeName ?: "?"}). Check your internet and tap Retry.")
             return
         }
-        message = "انقطع البث... بعيد الاتصال تلقائياً (محاولة $retry)"
+        message = tr("انقطع البث... بعيد الاتصال تلقائياً (محاولة $retry)", "Stream interrupted... reconnecting automatically (attempt $retry)")
         val resume = if (it.live || pos < 5_000) C.TIME_UNSET else pos - 3_000
         job = scope.launch {
             delay(minOf(1_500L * retry, 15_000L))
@@ -231,7 +237,7 @@ class PlayerCtl(
 
     fun seekTo(ms: Long) = player.seekTo(ms.coerceAtLeast(0))
 
-    fun changeSpeed(s: Float) { speed = s; player.setPlaybackSpeed(s); flash("السرعة ${s}x") }
+    fun changeSpeed(s: Float) { speed = s; player.setPlaybackSpeed(s); flash(tr("السرعة ${s}x", "Speed ${s}x")) }
 
     fun cycleResize() {
         resize = when (resize) {
@@ -241,9 +247,9 @@ class PlayerCtl(
         }
         vm.store.resizeMode = resize
         flash(when (resize) {
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> "ملء الشاشة (تمديد)"
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "تكبير (قص الأطراف)"
-            else -> "الأصلي (ملائم)"
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> tr("ملء الشاشة (تمديد)", "Fill screen (stretch)")
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> tr("تكبير (قص الأطراف)", "Zoom (crop edges)")
+            else -> tr("الأصلي (ملائم)", "Original (fit)")
         })
     }
 

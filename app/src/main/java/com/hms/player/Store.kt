@@ -43,6 +43,16 @@ class Store(ctx: Context) {
         else -> if (ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) DeviceMode.TV else DeviceMode.PHONE
     }
 
+    /** "ar" / "en". Arabic stays the default so existing installs look the same. */
+    var lang: String?
+        get() = sp.getString("lang", null)
+        set(v) { sp.edit().putString("lang", v).apply() }
+
+    /** Phone: go to picture-in-picture automatically when the user leaves the app while playing. */
+    var autoPip: Boolean
+        get() = sp.getBoolean("autopip", true)
+        set(v) { sp.edit().putBoolean("autopip", v).apply() }
+
     /** TV: launch the app automatically when the TV boots / wakes up. */
     var autoStart: Boolean
         get() = sp.getBoolean("autostart", false)

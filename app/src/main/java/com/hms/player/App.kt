@@ -51,7 +51,7 @@ import kotlinx.coroutines.delay
 fun HmsApp(vm: AppVM) {
     HmsTheme {
         CompositionLocalProvider(
-            LocalLayoutDirection provides LayoutDirection.Rtl,
+            LocalLayoutDirection provides Lang.direction,
             LocalTv provides (vm.deviceMode == DeviceMode.TV)
         ) {
             Surface(Modifier.fillMaxSize(), color = Bg, contentColor = TextMain) {

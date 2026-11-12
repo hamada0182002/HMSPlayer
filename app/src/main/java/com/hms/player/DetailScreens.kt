@@ -79,16 +79,16 @@ fun MovieScreen(vm: AppVM, item: Item) {
 
     val buttons: @Composable () -> Unit = {
         if (resumable) {
-            HmsButton("كمّل من ${fmtTime(pr!!.pos)}", icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0) }
-            HmsButton("من البداية", icon = Icons.Default.Replay, primary = false) { vm.openPlayer(listOf(play), 0, fromStart = true) }
+            HmsButton(tr("كمّل من ${fmtTime(pr!!.pos)}", "Resume from ${fmtTime(pr!!.pos)}"), icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0) }
+            HmsButton(tr("من البداية", "From the start"), icon = Icons.Default.Replay, primary = false) { vm.openPlayer(listOf(play), 0, fromStart = true) }
         } else {
-            HmsButton("تشغيل", icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0, fromStart = true) }
+            HmsButton(tr("تشغيل", "Play"), icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0, fromStart = true) }
         }
     }
-    val meta = info?.meta?.ifBlank { null } ?: item.rating?.takeIf { (it.toFloatOrNull() ?: 0f) > 0f }?.let { "التقييم: $it/10" }
+    val meta = info?.meta?.ifBlank { null } ?: item.rating?.takeIf { (it.toFloatOrNull() ?: 0f) > 0f }?.let { tr("التقييم: $it/10", "Rating: $it/10") }
     val plot = when (load) {
-        is Load.Loading -> "جاري تحميل القصة..."
-        else -> info?.plot?.ifBlank { null } ?: "مفيش وصف متاح"
+        is Load.Loading -> tr("جاري تحميل القصة...", "Loading the story...")
+        else -> info?.plot?.ifBlank { null } ?: tr("مفيش وصف متاح", "No description available")
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -136,7 +136,7 @@ fun SeriesScreen(vm: AppVM, item: Item) {
             is Load.Err -> ErrorBox(l.msg) { retry++ }
             is Load.Ok -> {
                 val si = l.v
-                if (si.seasons.isEmpty()) EmptyBox("مفيش حلقات للمسلسل ده") else SeriesBody(vm, item, si)
+                if (si.seasons.isEmpty()) EmptyBox(tr("مفيش حلقات للمسلسل ده", "No episodes for this series")) else SeriesBody(vm, item, si)
             }
         }
     }
@@ -155,7 +155,7 @@ private fun EpisodeRow(vm: AppVM, e: Episode, cover: String?, playlist: List<Pla
             Cover(e.img ?: cover, "${e.num}", Modifier.fillMaxHeight().aspectRatio(16f / 9f))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("${e.num} - ${e.title.ifBlank { "حلقة ${e.num}" }}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${e.num} - ${e.title.ifBlank { tr("حلقة ${e.num}", "Episode ${e.num}") }}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (!e.duration.isNullOrBlank()) Text(e.duration, color = TextMuted, fontSize = 12.sp)
             }
             if (pr?.done == true) Icon(Icons.Default.CheckCircle, null, tint = Ok, modifier = Modifier.size(22.dp))
@@ -173,7 +173,7 @@ private fun EpisodeRow(vm: AppVM, e: Episode, cover: String?, playlist: List<Pla
 @Composable
 private fun SeasonChips(keys: List<Int>, season: Int, onPick: (Int) -> Unit) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp)) {
-        items(keys) { k -> HmsButton("الموسم $k", primary = k == season) { onPick(k) } }
+        items(keys) { k -> HmsButton(tr("الموسم $k", "Season $k"), primary = k == season) { onPick(k) } }
     }
 }
 
@@ -184,7 +184,7 @@ private fun SeriesBody(vm: AppVM, item: Item, si: SeriesInfo) {
     var season by remember(si) { mutableIntStateOf(keys.first()) }
     val playlist = remember(si) { vm.episodePlaylist(si, item.id, item.name, si.cover ?: item.img) }
     val eps = si.seasons[season].orEmpty()
-    val plot = si.plot.ifBlank { item.plot.orEmpty() }.ifBlank { "مفيش وصف متاح" }
+    val plot = si.plot.ifBlank { item.plot.orEmpty() }.ifBlank { tr("مفيش وصف متاح", "No description available") }
 
     if (compact) {
         LazyColumn(
@@ -228,11 +228,11 @@ private fun SeriesBody(vm: AppVM, item: Item, si: SeriesInfo) {
 fun ContinueScreen(vm: AppVM) {
     val list = vm.continueList()
     Column(Modifier.fillMaxSize()) {
-        TopBar("متابعة المشاهدة", onBack = { vm.pop() }) {
-            if (list.isNotEmpty()) HmsButton("مسح السجل", icon = Icons.Default.Delete, primary = false) { vm.clearProgress() }
+        TopBar(tr("متابعة المشاهدة", "Continue watching"), onBack = { vm.pop() }) {
+            if (list.isNotEmpty()) HmsButton(tr("مسح السجل", "Clear history"), icon = Icons.Default.Delete, primary = false) { vm.clearProgress() }
         }
         if (list.isEmpty()) {
-            EmptyBox("مفيش حاجة لسه.\nابدأ فيلم أو حلقة وهتظهر هنا.")
+            EmptyBox(tr("مفيش حاجة لسه.\nابدأ فيلم أو حلقة وهتظهر هنا.", "Nothing yet.\nStart a movie or an episode and it will show up here."))
         } else {
             LazyVerticalGrid(
                 GridCells.Adaptive(122.dp), contentPadding = PaddingValues(14.dp),
@@ -240,7 +240,7 @@ fun ContinueScreen(vm: AppVM) {
             ) {
                 items(list, key = { it.key }) { p ->
                     val frac = if (p.dur > 0) p.pos.toFloat() / p.dur else 0f
-                    val badge = if (p.sid != null) (if (p.dur == 0L) "التالية " else "") + p.title.substringAfter(" - ", "") else null
+                    val badge = if (p.sid != null) (if (p.dur == 0L) tr("التالية ", "Next ") else "") + p.title.substringAfter(" - ", "") else null
                     Poster(title = p.seriesName ?: p.title, img = p.img, progress = frac, badge = badge) { vm.resume(p) }
                 }
             }

@@ -16,6 +16,13 @@ import kotlinx.coroutines.launch
 class AppVM(app: Application) : AndroidViewModel(app) {
     val store = Store(app)
 
+    init { Lang.current = Lang.fromCode(store.lang) }   // before the first screen is drawn
+
+    fun changeLanguage(l: AppLanguage) {
+        Lang.current = l
+        store.lang = l.code
+    }
+
     var accounts by mutableStateOf(store.accounts())
         private set
     var deviceMode by mutableStateOf(store.mode(app))
@@ -135,7 +142,7 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         return si.seasons.toSortedMap().values.flatten().map {
             PlayItem(
                 key = "e${it.id}",
-                title = "$name - م${it.season} ح${it.num}",
+                title = "$name - ${tr("م", "S")}${it.season} ${tr("ح", "E")}${it.num}",
                 url = Api.episodeUrl(a, it.id, it.ext),
                 img = it.img ?: cover, live = false, seriesName = name, sid = seriesId
             )

@@ -166,7 +166,7 @@ fun TopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (onBack != null) {
-            IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "رجوع", onClick = onBack)
+            IconBtn(Icons.AutoMirrored.Filled.ArrowBack, tr("رجوع", "Back"), onClick = onBack)
             Spacer(Modifier.width(12.dp))
         }
         Text(
@@ -178,7 +178,7 @@ fun TopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.(
 }
 
 @Composable
-fun LoadingBox(text: String = "جاري التحميل...") {
+fun LoadingBox(text: String = tr("جاري التحميل...", "Loading...")) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         CircularProgressIndicator(color = Orange, strokeWidth = 4.dp)
         Spacer(Modifier.height(12.dp))
@@ -196,7 +196,7 @@ fun ErrorBox(msg: String, onRetry: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         Text(msg, color = TextMain, fontSize = 15.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(14.dp))
-        HmsButton("إعادة المحاولة", icon = Icons.Default.Refresh, onClick = onRetry)
+        HmsButton(tr("إعادة المحاولة", "Retry"), icon = Icons.Default.Refresh, onClick = onRetry)
     }
 }
 
@@ -276,7 +276,7 @@ fun StaggerIn(index: Int, modifier: Modifier = Modifier, content: @Composable ()
     ) { content() }
 }
 
-/** Dark rounded dialog, always right-to-left. */
+/** Dark rounded dialog, follows the app language direction. */
 @Composable
 fun DialogShell(
     title: String,
@@ -285,7 +285,7 @@ fun DialogShell(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        CompositionLocalProvider(LocalLayoutDirection provides Lang.direction) {
             Surface(
                 Modifier.fillMaxWidth(if (isCompact()) maxOf(widthFraction, 0.92f) else widthFraction),
                 shape = RoundedCornerShape(22.dp), color = Surface1, contentColor = TextMain

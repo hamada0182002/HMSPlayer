@@ -129,7 +129,7 @@ object Api {
 
     private fun meta(r: String, y: String, g: String, du: String): String {
         val a = ArrayList<String>()
-        if ((r.toFloatOrNull() ?: 0f) > 0f) a += "التقييم: $r/10"
+        if ((r.toFloatOrNull() ?: 0f) > 0f) a += tr("التقييم: $r/10", "Rating: $r/10")
         if (y.length >= 4) a += y.take(4)
         if (g.isNotBlank()) a += g
         if (du.isNotBlank()) a += du
@@ -208,7 +208,7 @@ object Api {
         if (p.isBlank()) p = uri.getQueryParameter("password") ?: ""
         if (s.contains("?") || (uri.path ?: "").contains(".php")) s = "${uri.scheme}://${uri.authority}"
         s = s.trimEnd('/')
-        val n = name.trim().ifBlank { Uri.parse(s).host ?: "حساب" }
+        val n = name.trim().ifBlank { Uri.parse(s).host ?: tr("حساب", "Account") }
         return Account(id ?: UUID.randomUUID().toString(), n, s, u, p)
     }
 }

@@ -1,8 +1,24 @@
 @file:OptIn(UnstableApi::class)
+@file:Suppress("NewApi") // every PiP call below is guarded by pipSupported() / SDK checks
 
 package com.hms.player
 
+import android.app.Activity
+import android.app.PendingIntent
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.graphics.drawable.Icon as AndroidIcon
+import android.os.Build
+import android.util.Rational
 import android.view.ViewGroup
+import androidx.activity.ComponentActivity
+import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.util.Consumer
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -37,6 +53,7 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
@@ -92,6 +109,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -114,6 +132,46 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     var topFocused by remember { mutableStateOf(false) }
     val topFr = remember { FocusRequester() }
     val appear = remember { Animatable(0f) }
+
+    // ---------- picture-in-picture (phone only) ----------
+    val act = remember { ctx.findActivity() }
+    val canPip = !tv && pipSupported(ctx)
+    var inPip by remember { mutableStateOf(canPip && act?.isInPictureInPictureMode == true) }
+
+    DisposableEffect(canPip, act) {
+        val ca = act as? ComponentActivity
+        if (!canPip || ca == null) return@DisposableEffect onDispose { }
+        val modeL = Consumer<PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
+        ca.addOnPictureInPictureModeChangedListener(modeL)
+        // Android 8-11: enter PiP when the user presses Home while playing (Android 12+ uses auto-enter below)
+        val leaveL = Runnable {
+            if (Build.VERSION.SDK_INT < 31 && vm.store.autoPip && ctl.isPlaying) enterPip(ca, ctx, ctl.videoRatio, true, true)
+        }
+        ca.addOnUserLeaveHintListener(leaveL)
+        // play / pause button shown on the small PiP window
+        val rcv = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) { ctl.toggle() }
+        }
+        val f = IntentFilter(PIP_ACTION)
+        if (Build.VERSION.SDK_INT >= 33) ctx.registerReceiver(rcv, f, Context.RECEIVER_NOT_EXPORTED) else ctx.registerReceiver(rcv, f)
+        onDispose {
+            ca.removeOnPictureInPictureModeChangedListener(modeL)
+            ca.removeOnUserLeaveHintListener(leaveL)
+            runCatching { ctx.unregisterReceiver(rcv) }
+            // leaving the player: Home must not push the (non-playing) app into PiP any more
+            if (Build.VERSION.SDK_INT >= 31) runCatching {
+                ca.setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(false).build())
+            }
+        }
+    }
+    // keep the PiP window shape + play/pause icon + auto-enter flag in sync with the player
+    LaunchedEffect(canPip, ctl.isPlaying, ctl.videoRatio) {
+        if (canPip && act != null) {
+            pipParams(ctx, ctl.videoRatio, ctl.isPlaying, vm.store.autoPip)?.let { runCatching { act.setPictureInPictureParams(it) } }
+        }
+    }
+    // inside the small window: no controls, no dialogs
+    LaunchedEffect(inPip) { if (inPip) { dialog = null; show = false } }
 
     fun poke() { interaction++ }
     fun reveal(byKey: Boolean) { show = true; poke(); if (byKey) focusPlay++ }
@@ -210,7 +268,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                             if (!ctl.cur.live) {
                                 val fwd = o.x > size.width / 2
                                 ctl.seekBy(if (fwd) 10_000 else -10_000)
-                                ctl.flash(if (fwd) "+10 ث" else "-10 ث")
+                                ctl.flash((if (fwd) "+10 " else "-10 ") + tr("ث", "s"))
                             }
                         }
                     )
@@ -229,11 +287,11 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                         resizeMode = ctl.resize
                     }
                 },
-                update = { it.resizeMode = ctl.resize }
+                update = { it.resizeMode = if (inPip) AspectRatioFrameLayout.RESIZE_MODE_FIT else ctl.resize }
             )
 
             // ---------- controls ----------
-            AnimatedVisibility(show, Modifier.fillMaxSize(), enter = fadeIn(tween(180)), exit = fadeOut(tween(260))) {
+            AnimatedVisibility(show && !inPip, Modifier.fillMaxSize(), enter = fadeIn(tween(180)), exit = fadeOut(tween(260))) {
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(110.dp)
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .78f), Color.Transparent))))
@@ -247,16 +305,19 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                             .onFocusChanged { topFocused = it.hasFocus },
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "رجوع") { ctl.close() }
+                        IconBtn(Icons.AutoMirrored.Filled.ArrowBack, tr("رجوع", "Back")) { ctl.close() }
                         Text(
                             ctl.cur.title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                         )
                         if (ctl.videoSize.isNotEmpty()) Text(ctl.videoSize, color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
-                        IconBtn(Icons.Default.Audiotrack, "الصوت", focusRequester = topFr) { dialog = "audio" }
-                        IconBtn(Icons.Default.Subtitles, "الترجمة") { dialog = "text" }
-                        IconBtn(Icons.Default.AspectRatio, "حجم الصورة") { ctl.cycleResize() }
-                        if (!ctl.cur.live) IconBtn(Icons.Default.Speed, "السرعة") { dialog = "speed" }
+                        IconBtn(Icons.Default.Audiotrack, tr("الصوت", "Audio"), focusRequester = topFr) { dialog = "audio" }
+                        IconBtn(Icons.Default.Subtitles, tr("الترجمة", "Subtitles")) { dialog = "text" }
+                        IconBtn(Icons.Default.AspectRatio, tr("حجم الصورة", "Aspect ratio")) { ctl.cycleResize() }
+                        if (canPip) IconBtn(Icons.Default.PictureInPictureAlt, tr("صورة داخل صورة", "Picture in Picture")) {
+                            enterPip(act, ctx, ctl.videoRatio, ctl.isPlaying, vm.store.autoPip)
+                        }
+                        if (!ctl.cur.live) IconBtn(Icons.Default.Speed, tr("السرعة", "Speed")) { dialog = "speed" }
                     }
 
                     // center transport
@@ -264,14 +325,14 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                         Modifier.align(Alignment.Center),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(26.dp)
                     ) {
-                        if (ctl.hasPrev) IconBtn(Icons.Default.SkipPrevious, "السابق", size = 54.dp) { ctl.prev() }
-                        if (!ctl.cur.live) IconBtn(Icons.Default.Replay10, "ارجع 10 ثواني", size = 60.dp) { ctl.seekBy(-10_000) }
+                        if (ctl.hasPrev) IconBtn(Icons.Default.SkipPrevious, tr("السابق", "Previous"), size = 54.dp) { ctl.prev() }
+                        if (!ctl.cur.live) IconBtn(Icons.Default.Replay10, tr("ارجع 10 ثواني", "Back 10 seconds"), size = 60.dp) { ctl.seekBy(-10_000) }
                         IconBtn(
                             if (ctl.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            "تشغيل / إيقاف", size = 78.dp, filled = true, focusRequester = playFr
+                            tr("تشغيل / إيقاف", "Play / Pause"), size = 78.dp, filled = true, focusRequester = playFr
                         ) { ctl.toggle() }
-                        if (!ctl.cur.live) IconBtn(Icons.Default.Forward10, "قدّم 10 ثواني", size = 60.dp) { ctl.seekBy(10_000) }
-                        if (ctl.hasNext) IconBtn(Icons.Default.SkipNext, "التالي", size = 54.dp) { ctl.next() }
+                        if (!ctl.cur.live) IconBtn(Icons.Default.Forward10, tr("قدّم 10 ثواني", "Forward 10 seconds"), size = 60.dp) { ctl.seekBy(10_000) }
+                        if (ctl.hasNext) IconBtn(Icons.Default.SkipNext, tr("التالي", "Next"), size = 54.dp) { ctl.next() }
                     }
 
                     // bottom bar
@@ -281,7 +342,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                     ) {
                         if (ctl.cur.live) {
                             Surface(shape = RoundedCornerShape(8.dp), color = Danger) {
-                                Text("● مباشر", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                Text(tr("● مباشر", "● LIVE"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
                             }
                             Spacer(Modifier.width(12.dp))
@@ -300,7 +361,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                                             val step = when { rc >= 12 -> 60_000L; rc >= 4 -> 30_000L; else -> 10_000L }
                                             val back = ev.key == Key.DirectionLeft
                                             ctl.seekBy(if (back) -step else step)
-                                            ctl.flash((if (back) "-" else "+") + (step / 1000) + " ث")
+                                            ctl.flash((if (back) "-" else "+") + (step / 1000) + " " + tr("ث", "s"))
                                         }
                                         true
                                     }
@@ -332,23 +393,23 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
             }
 
             // ---------- overlays ----------
-            ctl.toast?.let { Pill(it, Modifier.align(Alignment.TopCenter).padding(top = 72.dp)) }
+            if (!inPip) ctl.toast?.let { Pill(it, Modifier.align(Alignment.TopCenter).padding(top = 72.dp)) }
             if (ctl.buffering && ctl.message == null && !ctl.failed) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Orange, strokeWidth = 4.dp)
             }
-            ctl.message?.let { m ->
+            if (!inPip) ctl.message?.let { m ->
                 if (ctl.failed) {
                     Surface(
                         Modifier.align(Alignment.Center).fillMaxWidth(0.6f), shape = RoundedCornerShape(20.dp),
                         color = Color.Black.copy(alpha = .85f), contentColor = Color.White
                     ) {
-                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        CompositionLocalProvider(LocalLayoutDirection provides Lang.direction) {
                             Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(m, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 22.sp)
                                 Spacer(Modifier.height(14.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    HmsButton("إعادة المحاولة") { ctl.retryNow() }
-                                    HmsButton("رجوع", primary = false) { ctl.close() }
+                                    HmsButton(tr("إعادة المحاولة", "Retry")) { ctl.retryNow() }
+                                    HmsButton(tr("رجوع", "Back"), primary = false) { ctl.close() }
                                 }
                             }
                         }
@@ -360,8 +421,8 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
         }
 
         when (dialog) {
-            "audio" -> TrackDialog(ctl.player, C.TRACK_TYPE_AUDIO, "الصوت", false) { dialog = null }
-            "text" -> TrackDialog(ctl.player, C.TRACK_TYPE_TEXT, "الترجمة", true) { dialog = null }
+            "audio" -> TrackDialog(ctl.player, C.TRACK_TYPE_AUDIO, tr("الصوت", "Audio"), false) { dialog = null }
+            "text" -> TrackDialog(ctl.player, C.TRACK_TYPE_TEXT, tr("الترجمة", "Subtitles"), true) { dialog = null }
             "speed" -> SpeedDialog(ctl.speed, { ctl.changeSpeed(it); dialog = null }) { dialog = null }
         }
     }
@@ -369,9 +430,9 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
 
 private fun trackLabel(f: Format, n: Int): String {
     val lang = f.language?.takeIf { it != "und" }
-        ?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale("ar")) }
+        ?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale(if (Lang.isAr) "ar" else "en")) }
     val ch = f.channelCount.takeIf { it > 0 }?.let { "${it}ch" }
-    return listOfNotNull(f.label, lang, ch).joinToString(" • ").ifBlank { "مسار $n" }
+    return listOfNotNull(f.label, lang, ch).joinToString(" • ").ifBlank { tr("مسار $n", "Track $n") }
 }
 
 @Composable
@@ -380,11 +441,11 @@ private fun TrackDialog(player: Player, type: Int, title: String, allowOff: Bool
     val disabled = player.trackSelectionParameters.disabledTrackTypes.contains(type)
     DialogShell(title, onDismiss, 0.45f) {
         if (groups.isEmpty() && !allowOff) {
-            Text("مفيش مسارات متاحة", color = TextMuted, fontSize = 14.sp)
+            Text(tr("مفيش مسارات متاحة", "No tracks available"), color = TextMuted, fontSize = 14.sp)
         } else {
             LazyColumn(Modifier.heightIn(max = 230.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (allowOff) item {
-                    OptionRow("إيقاف", disabled || groups.none { g -> (0 until g.length).any { g.isTrackSelected(it) } }) {
+                    OptionRow(tr("إيقاف", "Off"), disabled || groups.none { g -> (0 until g.length).any { g.isTrackSelected(it) } }) {
                         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                             .setTrackTypeDisabled(type, true).build()
                         onDismiss()
@@ -414,10 +475,10 @@ private fun TrackDialog(player: Player, type: Int, title: String, allowOff: Bool
 
 @Composable
 private fun SpeedDialog(current: Float, onPick: (Float) -> Unit, onDismiss: () -> Unit) {
-    DialogShell("سرعة التشغيل", onDismiss, 0.35f) {
+    DialogShell(tr("سرعة التشغيل", "Playback speed"), onDismiss, 0.35f) {
         LazyColumn(Modifier.heightIn(max = 230.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)) { s ->
-                OptionRow(if (s == 1f) "عادية (1x)" else "${s}x", s == current) { onPick(s) }
+                OptionRow(if (s == 1f) tr("عادية (1x)", "Normal (1x)") else "${s}x", s == current) { onPick(s) }
             }
         }
     }
@@ -432,4 +493,34 @@ private fun OptionRow(text: String, selected: Boolean, onClick: () -> Unit) {
             modifier = Modifier.align(Alignment.CenterStart).padding(horizontal = 14.dp), maxLines = 1
         )
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Picture-in-picture helpers
+// ---------------------------------------------------------------------------------------------
+
+private const val PIP_ACTION = "com.hms.player.PIP_TOGGLE"
+
+private fun pipSupported(ctx: Context): Boolean =
+    Build.VERSION.SDK_INT >= 26 && ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+/** PiP window shape (video ratio, limited to what Android allows) + a play/pause button. */
+private fun pipParams(ctx: Context, ratio: Float, playing: Boolean, auto: Boolean): PictureInPictureParams? {
+    if (Build.VERSION.SDK_INT < 26) return null
+    val r = ratio.coerceIn(0.45f, 2.35f)
+    val b = PictureInPictureParams.Builder().setAspectRatio(Rational((r * 1000).toInt(), 1000))
+    val pi = PendingIntent.getBroadcast(
+        ctx, 0, Intent(PIP_ACTION).setPackage(ctx.packageName),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+    val label = if (playing) tr("إيقاف", "Pause") else tr("تشغيل", "Play")
+    val icon = AndroidIcon.createWithResource(ctx, if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
+    b.setActions(listOf(RemoteAction(icon, label, label, pi)))
+    if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto && playing)
+    return b.build()
+}
+
+private fun enterPip(act: Activity?, ctx: Context, ratio: Float, playing: Boolean, auto: Boolean) {
+    val p = pipParams(ctx, ratio, playing, auto) ?: return
+    runCatching { act?.enterPictureInPictureMode(p) }
 }

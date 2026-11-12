@@ -78,9 +78,11 @@ object Updater {
     } catch (e: SSLException) {
         val d = ((e.cause ?: e).message ?: e.javaClass.simpleName).take(140)
         throw IOException(
-            "مشكلة في شهادة الأمان (https) مع GitHub.\n" +
-            "غالباً تاريخ/وقت التلفزيون غلط: اضبطهم على \"تلقائي\" من إعدادات التلفزيون وجرب تاني.\n" +
-            "ولو مضبوطين يبقى نظام التلفزيون قديم، ثبّت التحديث بفلاشة USB.\n[$d]"
+            tr("مشكلة في شهادة الأمان (https) مع GitHub.\n", "Security certificate (https) problem with GitHub.\n") +
+            tr("غالباً تاريخ/وقت التلفزيون غلط: اضبطهم على \"تلقائي\" من إعدادات التلفزيون وجرب تاني.\n",
+               "The TV date/time is probably wrong: set them to \"automatic\" in the TV settings and try again.\n") +
+            tr("ولو مضبوطين يبقى نظام التلفزيون قديم، ثبّت التحديث بفلاشة USB.\n[$d]",
+               "If they are correct, the TV system is outdated: install the update from a USB drive.\n[$d]")
         )
     }
 
@@ -105,7 +107,7 @@ object Updater {
     suspend fun check(ctx: Context): UpdateInfo? = withContext(Dispatchers.IO) {
         ensureClient(ctx)
         if (GITHUB_REPO.startsWith("OWNER")) {
-            throw IOException("لسه ما اتحددش مصدر التحديثات (GITHUB_REPO جوه ملف Updater.kt).")
+            throw IOException(tr("لسه ما اتحددش مصدر التحديثات (GITHUB_REPO جوه ملف Updater.kt).", "The update source is not set yet (GITHUB_REPO inside Updater.kt)."))
         }
         val req = Request.Builder()
             .url("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
@@ -113,7 +115,7 @@ object Updater {
             .header("User-Agent", UA)
             .build()
         exec(req).use { r ->
-            if (r.code == 404) throw IOException("مفيش إصدارات منشورة لسه.")
+            if (r.code == 404) throw IOException(tr("مفيش إصدارات منشورة لسه.", "No releases published yet."))
             if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
             val j = JSONObject(r.body!!.string())
             val tag = j.optString("tag_name").trim().trimStart('v', 'V')
