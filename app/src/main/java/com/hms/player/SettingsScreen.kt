@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -50,11 +51,16 @@ fun SettingsScreen(vm: AppVM) {
     var found by remember { mutableStateOf<UpdateInfo?>(null) }
     var auto by remember { mutableStateOf(vm.store.autoStart) }
     var autoHint by remember { mutableStateOf<String?>(null) }
+    val scroll = rememberScrollState()
+    // when a result message appears (e.g. "you are on the latest version"), scroll down so it is visible
+    LaunchedEffect(msg, autoHint) {
+        if (msg != null || autoHint != null) { delay(120); scroll.animateScrollTo(scroll.maxValue) }
+    }
 
     Column(Modifier.fillMaxSize()) {
         TopBar("الإعدادات", onBack = { vm.pop() })
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SettingCard("الحسابات") {
@@ -122,6 +128,8 @@ fun SettingsScreen(vm: AppVM) {
                 }
                 msg?.let { Text(it, color = if (it.contains("✓")) Ok else OrangeSoft, fontSize = 14.sp) }
             }
+
+            Spacer(Modifier.height(120.dp)) // extra room at the bottom so nothing is cut off on TV
         }
     }
     found?.let { UpdateDialog(it) { found = null } }

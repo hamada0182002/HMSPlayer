@@ -102,7 +102,6 @@ private fun BrowseBody(
     val startIdx = remember(section) { if (cats.first().id == RECENT && cats.size > 1) 1 else 0 }
     var sel by remember(section) { mutableIntStateOf((vm.catSel[section] ?: startIdx).coerceIn(cats.indices)) }
     val initSel = remember(section) { sel }
-    var pendingSel by remember(section) { mutableIntStateOf(-1) }
     val catFr = remember(section) { FocusRequester() }     // the selected category (first focus)
     val firstFr = remember(section) { FocusRequester() }   // the first channel / movie in the grid
     val enterJob = remember(section) { arrayOfNulls<Job>(1) }
@@ -118,8 +117,6 @@ private fun BrowseBody(
     LaunchedEffect(sel) { vm.catSel[section] = sel }
     // TV: the remote starts on the categories list (up / down = change category)
     LaunchedEffect(section) { if (tv && !compact) { delay(150); runCatching { catFr.requestFocus() } } }
-    // TV: moving over a category shows it after a short pause (no loading while you scroll fast)
-    LaunchedEffect(pendingSel) { if (pendingSel >= 0 && pendingSel != sel) { delay(400); sel = pendingSel } }
 
     val pane: @Composable (Modifier) -> Unit = { m ->
         Box(m) {
@@ -174,9 +171,8 @@ private fun BrowseBody(
                     val on = i == sel
                     FocusBox(
                         Modifier.fillMaxWidth().height(44.dp), RoundedCornerShape(12.dp),
-                        { sel = i; pendingSel = -1 },
-                        focusRequester = if (i == initSel) catFr else null,
-                        onFocus = { f -> if (f && tv && c.id != RECENT) pendingSel = i }
+                        { sel = i },   // a category opens only when you press OK
+                        focusRequester = if (i == initSel) catFr else null
                     ) {
                         Box(Modifier.fillMaxSize().background(if (on) Orange.copy(alpha = .22f) else Color.Transparent))
                         Text(

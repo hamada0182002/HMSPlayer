@@ -101,6 +101,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val ctl = remember(req) { PlayerCtl(ctx, vm, req, scope) }
+    val tv = LocalTv.current
     val rootFr = remember { FocusRequester() }
     val playFr = remember { FocusRequester() }
     var show by remember { mutableStateOf(true) }
@@ -123,7 +124,12 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     LaunchedEffect(ctl) { while (true) { ctl.tick(); delay(500) } }
     LaunchedEffect(Unit) { appear.animateTo(1f, tween(280)) }
     LaunchedEffect(Unit) { runCatching { rootFr.requestFocus() } }
-    LaunchedEffect(show) { if (!show) runCatching { rootFr.requestFocus() } }
+    // controls hidden -> root gets the keys; controls shown (TV) -> focus sits on play/pause,
+    // so OK = pause/play and left / right move to the buttons beside it.
+    LaunchedEffect(show) {
+        if (!show) runCatching { rootFr.requestFocus() }
+        else if (tv) { delay(150); runCatching { playFr.requestFocus() } }
+    }
     LaunchedEffect(focusPlay) { if (focusPlay > 0) { delay(90); runCatching { playFr.requestFocus() } } }
     // auto-hide controls while playing
     LaunchedEffect(show, interaction, ctl.isPlaying) {
@@ -168,7 +174,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                         Key.MediaPrevious, Key.ChannelDown -> { ctl.prev(); true }
                         else -> if (show) false else when (ev.key) {
                             // controls hidden: remote acts directly
-                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (!live) ctl.toggle(); reveal(true); true }
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { ctl.toggle(); reveal(true); true }
                             Key.DirectionLeft -> { if (!live) ctl.seekBy(-10_000); reveal(true); true }
                             Key.DirectionRight -> { if (!live) ctl.seekBy(10_000); reveal(true); true }
                             Key.DirectionUp -> { if (live) ctl.prev(); reveal(true); true }
