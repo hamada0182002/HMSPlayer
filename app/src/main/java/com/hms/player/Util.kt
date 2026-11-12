@@ -40,14 +40,14 @@ fun norm(t: String): String = t.lowercase()
     .replace('ة', 'ه').replace('ى', 'ي')
 
 fun friendly(e: Throwable): String = when (e) {
-    is AuthException -> "اليوزر أو الباسورد غلط، أو الاشتراك منتهي."
-    is SocketTimeoutException -> "السيرفر اتأخر في الرد. جرب تاني."
-    is UnknownHostException -> "مش قادر يوصل للسيرفر. اتأكد من الرابط ومن الإنترنت."
-    is ConnectException -> "السيرفر مش بيرد على العنوان ده. اتأكد من الرابط والبورت."
-    is SSLException -> "مشكلة في شهادة الأمان (https). جرب الرابط بـ http."
-    is JSONException -> "السيرفر رجّع رد غير مفهوم. اتأكد إنه سيرفر Xtream."
-    is IllegalArgumentException -> "رابط السيرفر غير صحيح."
-    else -> e.message?.takeIf { it.isNotBlank() }?.let { "حصل خطأ: $it" } ?: "حصل خطأ غير معروف"
+    is AuthException -> tr("اليوزر أو الباسورد غلط، أو الاشتراك منتهي.", "Wrong username or password, or the subscription has expired.")
+    is SocketTimeoutException -> tr("السيرفر اتأخر في الرد. جرب تاني.", "The server took too long to respond. Try again.")
+    is UnknownHostException -> tr("مش قادر يوصل للسيرفر. اتأكد من الرابط ومن الإنترنت.", "Can't reach the server. Check the URL and your internet connection.")
+    is ConnectException -> tr("السيرفر مش بيرد على العنوان ده. اتأكد من الرابط والبورت.", "The server is not responding at this address. Check the URL and port.")
+    is SSLException -> tr("مشكلة في شهادة الأمان (https). جرب الرابط بـ http.", "Security certificate (https) problem. Try the link with http.")
+    is JSONException -> tr("السيرفر رجّع رد غير مفهوم. اتأكد إنه سيرفر Xtream.", "The server returned an unreadable response. Make sure it is an Xtream server.")
+    is IllegalArgumentException -> tr("رابط السيرفر غير صحيح.", "The server URL is not valid.")
+    else -> e.message?.takeIf { it.isNotBlank() }?.let { tr("حصل خطأ: $it", "Error: $it") } ?: tr("حصل خطأ غير معروف", "Unknown error")
 }
 
 sealed interface Load<out T> {

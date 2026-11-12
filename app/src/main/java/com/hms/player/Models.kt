@@ -2,8 +2,11 @@ package com.hms.player
 
 enum class DeviceMode { PHONE, TV }
 
-enum class Section(val title: String) {
-    LIVE("مباشر"), VOD("أفلام"), SERIES("مسلسلات")
+enum class Section(private val ar: String, private val en: String) {
+    LIVE("مباشر", "Live"), VOD("أفلام", "Movies"), SERIES("مسلسلات", "Series");
+
+    /** Section name in the selected app language. */
+    val title: String get() = tr(ar, en)
 }
 
 data class Account(

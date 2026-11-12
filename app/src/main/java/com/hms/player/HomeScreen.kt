@@ -42,25 +42,25 @@ fun HomeScreen(vm: AppVM) {
     }
     val inf = vm.info
     val sub = buildString {
-        inf?.expiry?.let { append("ينتهي الاشتراك: ").append(SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date(it * 1000))) }
-        if (inf != null && inf.maxConn.isNotBlank()) { if (isNotEmpty()) append("   •   "); append("الأجهزة: ${inf.activeConn.ifBlank { "0" }}/${inf.maxConn}") }
+        inf?.expiry?.let { append(tr("ينتهي الاشتراك: ", "Expires: ")).append(SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date(it * 1000))) }
+        if (inf != null && inf.maxConn.isNotBlank()) { if (isNotEmpty()) append("   •   "); append(tr("الأجهزة: ", "Devices: ") + "${inf.activeConn.ifBlank { "0" }}/${inf.maxConn}") }
     }
     val cont = vm.continueList().size
 
     val live: @Composable () -> Unit = {
-        Tile("مباشر", "قنوات البث المباشر", Icons.Default.LiveTv, listOf(Color(0xFFFF9A1F), Color(0xFFE8362B)), true) { vm.push(Screen.Browse(Section.LIVE)) }
+        Tile(tr("مباشر", "Live"), tr("قنوات البث المباشر", "Live TV channels"), Icons.Default.LiveTv, listOf(Color(0xFFFF9A1F), Color(0xFFE8362B)), true) { vm.push(Screen.Browse(Section.LIVE)) }
     }
     val movies: @Composable () -> Unit = {
-        Tile("أفلام", "مكتبة الأفلام", Icons.Default.Movie, listOf(Color(0xFF2A7BE8), Color(0xFF1B3FA8)), true) { vm.push(Screen.Browse(Section.VOD)) }
+        Tile(tr("أفلام", "Movies"), tr("مكتبة الأفلام", "Movie library"), Icons.Default.Movie, listOf(Color(0xFF2A7BE8), Color(0xFF1B3FA8)), true) { vm.push(Screen.Browse(Section.VOD)) }
     }
     val series: @Composable () -> Unit = {
-        Tile("مسلسلات", "كل المواسم والحلقات", Icons.Default.VideoLibrary, listOf(Color(0xFF8B3CF0), Color(0xFF4B2BC4)), true) { vm.push(Screen.Browse(Section.SERIES)) }
+        Tile(tr("مسلسلات", "Series"), tr("كل المواسم والحلقات", "All seasons and episodes"), Icons.Default.VideoLibrary, listOf(Color(0xFF8B3CF0), Color(0xFF4B2BC4)), true) { vm.push(Screen.Browse(Section.SERIES)) }
     }
     val resume: @Composable () -> Unit = {
-        Tile("متابعة المشاهدة", if (cont > 0) "$cont عنصر" else null, Icons.Default.History, listOf(Color(0xFF1FB58A), Color(0xFF127A66)), false) { vm.push(Screen.Continue) }
+        Tile(tr("متابعة المشاهدة", "Continue watching"), if (cont > 0) tr("$cont عنصر", if (cont == 1) "1 item" else "$cont items") else null, Icons.Default.History, listOf(Color(0xFF1FB58A), Color(0xFF127A66)), false) { vm.push(Screen.Continue) }
     }
     val settings: @Composable () -> Unit = {
-        Tile("الإعدادات", "الحسابات • الجهاز • التحديث", Icons.Default.Settings, listOf(Color(0xFF3A4660), Color(0xFF232C42)), false) { vm.push(Screen.Settings) }
+        Tile(tr("الإعدادات", "Settings"), tr("الحسابات • الجهاز • التحديث", "Accounts • Device • Update"), Icons.Default.Settings, listOf(Color(0xFF3A4660), Color(0xFF232C42)), false) { vm.push(Screen.Settings) }
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 10.dp)) {

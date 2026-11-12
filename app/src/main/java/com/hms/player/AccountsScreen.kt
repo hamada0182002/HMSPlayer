@@ -53,11 +53,11 @@ fun AccountsScreen(vm: AppVM) {
     var deleting by remember { mutableStateOf<Account?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        TopBar("الحسابات", onBack = if (vm.stack.size > 1) ({ vm.pop() }) else null) {
-            HmsButton("إضافة حساب", icon = Icons.Default.Add) { adding = true }
+        TopBar(tr("الحسابات", "Accounts"), onBack = if (vm.stack.size > 1) ({ vm.pop() }) else null) {
+            HmsButton(tr("إضافة حساب", "Add account"), icon = Icons.Default.Add) { adding = true }
         }
         if (vm.accounts.isEmpty()) {
-            EmptyBox("مفيش حسابات لسه.\nاضغط \"إضافة حساب\" وادخل بيانات اشتراك Xtream.")
+            EmptyBox(tr("مفيش حسابات لسه.\nاضغط \"إضافة حساب\" وادخل بيانات اشتراك Xtream.", "No accounts yet.\nTap \"Add account\" and enter your Xtream subscription details."))
         } else {
             LazyVerticalGrid(
                 GridCells.Adaptive(300.dp),
@@ -78,12 +78,12 @@ fun AccountsScreen(vm: AppVM) {
     if (adding) AccountDialog(vm, null) { adding = false }
     editing?.let { e -> AccountDialog(vm, e) { editing = null } }
     deleting?.let { d ->
-        DialogShell("حذف الحساب", { deleting = null }, 0.4f) {
-            Text("متأكد إنك عايز تحذف \"${d.name}\"؟", fontSize = 15.sp)
+        DialogShell(tr("حذف الحساب", "Delete account"), { deleting = null }, 0.4f) {
+            Text(tr("متأكد إنك عايز تحذف \"${d.name}\"؟", "Are you sure you want to delete \"${d.name}\"?"), fontSize = 15.sp)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HmsButton("حذف", icon = Icons.Default.Delete) { vm.deleteAccount(d.id); deleting = null }
-                HmsButton("إلغاء", primary = false) { deleting = null }
+                HmsButton(tr("حذف", "Delete"), icon = Icons.Default.Delete) { vm.deleteAccount(d.id); deleting = null }
+                HmsButton(tr("إلغاء", "Cancel"), primary = false) { deleting = null }
             }
         }
     }
@@ -100,18 +100,18 @@ private fun AccountCard(a: Account, isActive: Boolean, onUse: () -> Unit, onEdit
                 Text(a.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (isActive) {
                     Surface(shape = RoundedCornerShape(50), color = Orange.copy(alpha = .2f)) {
-                        Text("الحالي", color = OrangeSoft, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
+                        Text(tr("الحالي", "Current"), color = OrangeSoft, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
                     }
                 }
             }
             Spacer(Modifier.height(4.dp))
             Text(a.server.removePrefix("http://").removePrefix("https://"), color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("المستخدم: ${a.user}", color = TextMuted, fontSize = 13.sp, maxLines = 1)
+            Text(tr("المستخدم: ${a.user}", "User: ${a.user}"), color = TextMuted, fontSize = 13.sp, maxLines = 1)
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HmsButton(if (isActive) "فتح" else "دخول", icon = Icons.Default.Login, modifier = Modifier.weight(1f), onClick = onUse)
-                IconBtn(Icons.Default.Edit, "تعديل", onClick = onEdit)
-                IconBtn(Icons.Default.Delete, "حذف", tint = Danger, onClick = onDelete)
+                HmsButton(if (isActive) tr("فتح", "Open") else tr("دخول", "Sign in"), icon = Icons.Default.Login, modifier = Modifier.weight(1f), onClick = onUse)
+                IconBtn(Icons.Default.Edit, tr("تعديل", "Edit"), onClick = onEdit)
+                IconBtn(Icons.Default.Delete, tr("حذف", "Delete"), tint = Danger, onClick = onDelete)
             }
         }
     }
@@ -130,9 +130,9 @@ private fun AccountDialog(vm: AppVM, existing: Account?, onDismiss: () -> Unit) 
     fun build() = Api.buildAccount(existing?.id, name, server, user, pass)
     fun commit(a: Account) { vm.saveAccount(a, activate = existing == null); onDismiss() }
     fun save() {
-        if (server.isBlank()) { err = "ادخل رابط السيرفر"; return }
+        if (server.isBlank()) { err = tr("ادخل رابط السيرفر", "Enter the server URL"); return }
         val a = build()
-        if (a.user.isBlank() || a.pass.isBlank()) { err = "ادخل اليوزر والباسورد"; return }
+        if (a.user.isBlank() || a.pass.isBlank()) { err = tr("ادخل اليوزر والباسورد", "Enter the username and password"); return }
         busy = true; err = null
         scope.launch {
             try { Api.info(a); commit(a) } catch (e: Exception) { err = friendly(e); busy = false }
@@ -146,21 +146,21 @@ private fun AccountDialog(vm: AppVM, existing: Account?, onDismiss: () -> Unit) 
     )
 
     val compact = isCompact()
-    DialogShell(if (existing == null) "إضافة حساب Xtream" else "تعديل الحساب", { if (!busy) onDismiss() }, 0.78f) {
+    DialogShell(if (existing == null) tr("إضافة حساب Xtream", "Add Xtream account") else tr("تعديل الحساب", "Edit account"), { if (!busy) onDismiss() }, 0.78f) {
         val fName: @Composable (Modifier) -> Unit = { m ->
-            OutlinedTextField(name, { name = it }, m, label = { Text("اسم الحساب (اختياري)") }, singleLine = true, textStyle = ltr, colors = colors)
+            OutlinedTextField(name, { name = it }, m, label = { Text(tr("اسم الحساب (اختياري)", "Account name (optional)")) }, singleLine = true, textStyle = ltr, colors = colors)
         }
         val fServer: @Composable (Modifier) -> Unit = { m ->
             OutlinedTextField(
-                server, { server = it }, m, label = { Text("رابط السيرفر  http://example.com:8080") },
+                server, { server = it }, m, label = { Text(tr("رابط السيرفر", "Server URL") + "  http://example.com:8080") },
                 singleLine = true, textStyle = ltr, colors = colors, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
             )
         }
         val fUser: @Composable (Modifier) -> Unit = { m ->
-            OutlinedTextField(user, { user = it }, m, label = { Text("اليوزر") }, singleLine = true, textStyle = ltr, colors = colors)
+            OutlinedTextField(user, { user = it }, m, label = { Text(tr("اليوزر", "Username")) }, singleLine = true, textStyle = ltr, colors = colors)
         }
         val fPass: @Composable (Modifier) -> Unit = { m ->
-            OutlinedTextField(pass, { pass = it }, m, label = { Text("الباسورد") }, singleLine = true, textStyle = ltr, colors = colors)
+            OutlinedTextField(pass, { pass = it }, m, label = { Text(tr("الباسورد", "Password")) }, singleLine = true, textStyle = ltr, colors = colors)
         }
         if (compact) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -176,9 +176,9 @@ private fun AccountDialog(vm: AppVM, existing: Account?, onDismiss: () -> Unit) 
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (busy) CircularProgressIndicator(Modifier.padding(horizontal = 12.dp), color = Orange, strokeWidth = 3.dp)
-            else HmsButton("حفظ", onClick = ::save)
-            HmsButton("إلغاء", primary = false) { if (!busy) onDismiss() }
-            if (err != null && !busy && server.isNotBlank()) HmsButton("حفظ بدون فحص", primary = false) { commit(build()) }
+            else HmsButton(tr("حفظ", "Save"), onClick = ::save)
+            HmsButton(tr("إلغاء", "Cancel"), primary = false) { if (!busy) onDismiss() }
+            if (err != null && !busy && server.isNotBlank()) HmsButton(tr("حفظ بدون فحص", "Save without checking"), primary = false) { commit(build()) }
         }
     }
 }
