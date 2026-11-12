@@ -43,6 +43,11 @@ class Store(ctx: Context) {
         else -> if (ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) DeviceMode.TV else DeviceMode.PHONE
     }
 
+    /** TV: launch the app automatically when the TV boots / wakes up. */
+    var autoStart: Boolean
+        get() = sp.getBoolean("autostart", false)
+        set(v) { sp.edit().putBoolean("autostart", v).apply() }
+
     var resizeMode: Int
         get() = sp.getInt("resize", 0)
         set(v) { sp.edit().putInt("resize", v).apply() }

@@ -1,11 +1,17 @@
 package com.hms.player
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -42,6 +48,8 @@ fun SettingsScreen(vm: AppVM) {
     var checking by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     var found by remember { mutableStateOf<UpdateInfo?>(null) }
+    var auto by remember { mutableStateOf(vm.store.autoStart) }
+    var autoHint by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         TopBar("الإعدادات", onBack = { vm.pop() })
@@ -63,6 +71,34 @@ fun SettingsScreen(vm: AppVM) {
                     HmsButton("موبايل", icon = Icons.Default.Smartphone, primary = vm.deviceMode == DeviceMode.PHONE) { vm.changeMode(DeviceMode.PHONE) }
                     HmsButton("تلفزيون", icon = Icons.Default.Tv, primary = vm.deviceMode == DeviceMode.TV) { vm.changeMode(DeviceMode.TV) }
                 }
+            }
+
+            if (vm.deviceMode == DeviceMode.TV) SettingCard("التشغيل التلقائي") {
+                Text(
+                    "يفتح البرنامج لوحده أول ما التلفزيون يشتغل.",
+                    color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp
+                )
+                HmsButton(
+                    if (auto) "التشغيل التلقائي: مفعّل ✓" else "التشغيل التلقائي: متوقف",
+                    icon = Icons.Default.PowerSettingsNew, primary = auto
+                ) {
+                    auto = !auto
+                    vm.store.autoStart = auto
+                    autoHint = null
+                    if (auto && Build.VERSION.SDK_INT >= 29 && !Settings.canDrawOverlays(ctx)) {
+                        // Android 10+ only lets an app open itself at boot if "display over other apps" is allowed
+                        autoHint = "اسمح للتطبيق بـ \"العرض فوق التطبيقات الأخرى\" علشان يفتح لوحده."
+                        try {
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) {
+                            autoHint = "فعّل إذن \"العرض فوق التطبيقات الأخرى\" للتطبيق من إعدادات التلفزيون (Apps > HMS Player)."
+                        }
+                    }
+                }
+                autoHint?.let { Text(it, color = OrangeSoft, fontSize = 13.sp, lineHeight = 20.sp) }
             }
 
             SettingCard("التحديث") {

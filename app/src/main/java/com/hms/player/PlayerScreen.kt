@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,6 +108,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     var focusPlay by remember { mutableIntStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
     var drag by remember { mutableStateOf<Float?>(null) }
+    var seekFocused by remember { mutableStateOf(false) }
     val appear = remember { Animatable(0f) }
 
     fun poke() { interaction++ }
@@ -260,16 +263,41 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                             Text("${ctl.index + 1} / ${ctl.req.items.size}", color = Color.White.copy(alpha = .75f), fontSize = 13.sp)
                         } else {
                             Text(fmtTime(drag?.toLong() ?: ctl.pos), color = Color.White, fontSize = 13.sp, modifier = Modifier.width(56.dp))
-                            Slider(
-                                value = (drag ?: ctl.pos.toFloat()).coerceIn(0f, ctl.dur.toFloat().coerceAtLeast(1f)),
-                                onValueChange = { drag = it; poke() },
-                                onValueChangeFinished = { drag?.let { ctl.seekTo(it.toLong()) }; drag = null },
-                                valueRange = 0f..ctl.dur.toFloat().coerceAtLeast(1f),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Orange, activeTrackColor = Orange, inactiveTrackColor = Color.White.copy(alpha = .3f)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+                            // Seek bar: focus it with the remote (Down from the buttons), then Left/Right = back/forward.
+                            // Holding the key speeds it up.
+                            Box(
+                                Modifier.weight(1f)
+                                    .onFocusChanged { seekFocused = it.hasFocus }
+                                    .onPreviewKeyEvent { ev ->
+                                        if (ev.key != Key.DirectionLeft && ev.key != Key.DirectionRight) return@onPreviewKeyEvent false
+                                        if (ev.type == KeyEventType.KeyDown) {
+                                            val rc = ev.nativeKeyEvent.repeatCount
+                                            val step = when { rc >= 12 -> 60_000L; rc >= 4 -> 30_000L; else -> 10_000L }
+                                            val back = ev.key == Key.DirectionLeft
+                                            ctl.seekBy(if (back) -step else step)
+                                            ctl.flash((if (back) "-" else "+") + (step / 1000) + " ث")
+                                        }
+                                        true
+                                    }
+                                    .focusable()
+                                    .border(
+                                        2.dp,
+                                        if (seekFocused) Orange else Color.Transparent,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(horizontal = 6.dp)
+                            ) {
+                                Slider(
+                                    value = (drag ?: ctl.pos.toFloat()).coerceIn(0f, ctl.dur.toFloat().coerceAtLeast(1f)),
+                                    onValueChange = { drag = it; poke() },
+                                    onValueChangeFinished = { drag?.let { ctl.seekTo(it.toLong()) }; drag = null },
+                                    valueRange = 0f..ctl.dur.toFloat().coerceAtLeast(1f),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = Orange, activeTrackColor = Orange, inactiveTrackColor = Color.White.copy(alpha = .3f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                             Text(if (ctl.dur > 0) fmtTime(ctl.dur) else "--:--", color = Color.White, fontSize = 13.sp,
                                 modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                         }
