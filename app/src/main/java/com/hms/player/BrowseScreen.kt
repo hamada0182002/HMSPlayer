@@ -23,10 +23,18 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 const val RECENT = "__recent__"
 
@@ -88,8 +96,16 @@ private fun BrowseBody(
     query: String, searchAll: Boolean, compact: Boolean, onSearchAll: () -> Unit
 ) {
     val acc = vm.active ?: return
-    // start on the first real category, not on the heavy "recent" one
-    var sel by remember(section) { mutableIntStateOf(if (cats.first().id == RECENT && cats.size > 1) 1 else 0) }
+    val tv = LocalTv.current
+    val scope = rememberCoroutineScope()
+    // start on the first real category (not the heavy "recent" one), or where the user was last time
+    val startIdx = remember(section) { if (cats.first().id == RECENT && cats.size > 1) 1 else 0 }
+    var sel by remember(section) { mutableIntStateOf((vm.catSel[section] ?: startIdx).coerceIn(cats.indices)) }
+    val initSel = remember(section) { sel }
+    var pendingSel by remember(section) { mutableIntStateOf(-1) }
+    val catFr = remember(section) { FocusRequester() }     // the selected category (first focus)
+    val firstFr = remember(section) { FocusRequester() }   // the first channel / movie in the grid
+    val enterJob = remember(section) { arrayOfNulls<Job>(1) }
     var retry by remember { mutableIntStateOf(0) }
     val cat = cats[sel.coerceIn(cats.indices)]
     val isRecent = cat.id == RECENT
@@ -97,10 +113,17 @@ private fun BrowseBody(
     val allMode = isRecent || (searchAll && q.isNotEmpty())
     val catId: String? = if (allMode) null else cat.id.ifEmpty { null }
     val load = produceLoad(Triple(acc.id, section, catId), retry) { vm.items(section, catId) }
+    val gs: LazyGridState = if (q.isEmpty()) vm.gridState("$section|${cat.id}") else rememberLazyGridState()
+
+    LaunchedEffect(sel) { vm.catSel[section] = sel }
+    // TV: the remote starts on the categories list (up / down = change category)
+    LaunchedEffect(section) { if (tv && !compact) { delay(150); runCatching { catFr.requestFocus() } } }
+    // TV: moving over a category shows it after a short pause (no loading while you scroll fast)
+    LaunchedEffect(pendingSel) { if (pendingSel >= 0 && pendingSel != sel) { delay(400); sel = pendingSel } }
 
     val pane: @Composable (Modifier) -> Unit = { m ->
         Box(m) {
-            ItemsPane(vm, section, cat.id, isRecent, q, searchAll, allMode, load, { retry++ }, onSearchAll)
+            ItemsPane(vm, section, cat.id, isRecent, q, searchAll, allMode, load, gs, firstFr, { retry++ }, onSearchAll)
         }
     }
 
@@ -127,13 +150,34 @@ private fun BrowseBody(
     } else {
         Row(Modifier.fillMaxSize()) {
             LazyColumn(
-                Modifier.width(190.dp).fillMaxHeight(), state = vm.listState("cat|$section"),
+                Modifier.width(190.dp).fillMaxHeight().onPreviewKeyEvent { ev ->
+                    // TV: "left" from the categories enters the FIRST channel / movie
+                    if (tv && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) {
+                        if (ev.nativeKeyEvent.repeatCount == 0) {
+                            enterJob[0]?.cancel()
+                            enterJob[0] = scope.launch {
+                                runCatching { gs.scrollToItem(0) }
+                                repeat(40) {                       // the list may still be loading: retry ~4s
+                                    delay(100)
+                                    if (runCatching { firstFr.requestFocus() }.isSuccess) return@launch
+                                }
+                            }
+                        }
+                        true
+                    } else false
+                },
+                state = vm.listState("cat|$section"),
                 contentPadding = PaddingValues(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 itemsIndexed(cats, key = { i, c -> "${i}_${c.id}" }) { i, c ->
                     val on = i == sel
-                    FocusBox(Modifier.fillMaxWidth().height(44.dp), RoundedCornerShape(12.dp), { sel = i }) {
+                    FocusBox(
+                        Modifier.fillMaxWidth().height(44.dp), RoundedCornerShape(12.dp),
+                        { sel = i; pendingSel = -1 },
+                        focusRequester = if (i == initSel) catFr else null,
+                        onFocus = { f -> if (f && tv && c.id != RECENT) pendingSel = i }
+                    ) {
                         Box(Modifier.fillMaxSize().background(if (on) Orange.copy(alpha = .22f) else Color.Transparent))
                         Text(
                             c.name, color = if (on) OrangeSoft else TextMain, fontSize = 14.sp,
@@ -151,7 +195,8 @@ private fun BrowseBody(
 @Composable
 private fun ItemsPane(
     vm: AppVM, section: Section, catKey: String, isRecent: Boolean, q: String,
-    searchAll: Boolean, allMode: Boolean, load: Load<List<Item>>, onRetry: () -> Unit, onSearchAll: () -> Unit
+    searchAll: Boolean, allMode: Boolean, load: Load<List<Item>>,
+    gs: LazyGridState, firstFr: FocusRequester, onRetry: () -> Unit, onSearchAll: () -> Unit
 ) {
     when (load) {
         is Load.Loading -> LoadingBox(if (allMode) "جاري تحميل القسم كله...\n(ممكن ياخد وقت حسب حجم القائمة)" else "جاري التحميل...")
@@ -164,8 +209,11 @@ private fun ItemsPane(
                     .ifEmpty { all.takeLast(150).reversed() }
             }
             val pool = if (isRecent && q.isNotEmpty()) all else recent
-            val shown = remember(pool, q) { if (q.isEmpty()) pool else pool.filter { norm(it.name).contains(q) } }
-            val gs: LazyGridState = if (q.isEmpty()) vm.gridState("$section|$catKey") else rememberLazyGridState()
+            // normalise the names once per list (not on every keystroke)
+            val names = remember(pool) { lazy { pool.map { norm(it.name) } } }
+            val shown = remember(pool, q) {
+                if (q.isEmpty()) pool else { val n = names.value; pool.filterIndexed { i, _ -> n[i].contains(q) } }
+            }
             val isLive = section == Section.LIVE
             Column(Modifier.fillMaxSize()) {
                 if (q.isNotEmpty() && !searchAll && !isRecent) {
@@ -190,7 +238,8 @@ private fun ItemsPane(
                             Poster(
                                 title = m.name, img = m.img,
                                 aspect = if (isLive) 1.35f else 2f / 3f, fit = isLive,
-                                progress = frac
+                                progress = frac,
+                                focusRequester = if (i == 0) firstFr else null
                             ) {
                                 when (section) {
                                     Section.LIVE -> vm.openPlayer(shown.map { x -> vm.playItemFor(x) }, i)

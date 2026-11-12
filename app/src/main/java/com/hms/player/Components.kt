@@ -1,6 +1,7 @@
 package com.hms.player
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +71,9 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
+/** true on Android TV mode: lighter animations / no stagger, to keep weak TV boxes smooth. */
+val LocalTv = compositionLocalOf { false }
+
 /**
  * The basic focusable/clickable surface of the whole app.
  * Touch  -> normal tap.
@@ -80,17 +85,18 @@ fun FocusBox(
     shape: Shape = RoundedCornerShape(16.dp),
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null,
+    onFocus: ((Boolean) -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.06f else 1f, tween(150), label = "focusScale")
     val fr = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
     Box(
         modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            // no per-item graphics layer unless focused (much lighter for big grids on weak TVs)
+            .then(if (focused) Modifier.graphicsLayer { scaleX = 1.06f; scaleY = 1.06f } else Modifier)
             .clip(shape)
             .then(fr)
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focused = it.isFocused; onFocus?.invoke(it.isFocused) }
             .clickable(onClick = onClick)
             .then(if (focused) Modifier.border(3.dp, Orange, shape) else Modifier),
         content = content
@@ -128,9 +134,10 @@ fun HmsButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     primary: Boolean = true,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
-    FocusBox(modifier.height(44.dp), RoundedCornerShape(22.dp), onClick) {
+    FocusBox(modifier.height(44.dp), RoundedCornerShape(22.dp), onClick, focusRequester) {
         Box(
             Modifier.matchParentSize().background(
                 if (primary) Brush.linearGradient(listOf(OrangeSoft, Orange, OrangeDeep)) else SolidColor(Surface2)
@@ -217,10 +224,11 @@ fun Poster(
     fit: Boolean = false,
     progress: Float? = null,
     badge: String? = null,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
     Column(modifier) {
-        FocusBox(Modifier.fillMaxWidth().aspectRatio(aspect), RoundedCornerShape(14.dp), onClick) {
+        FocusBox(Modifier.fillMaxWidth().aspectRatio(aspect), RoundedCornerShape(14.dp), onClick, focusRequester) {
             Box(
                 Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Surface2, Surface1))),
                 contentAlignment = Alignment.Center
@@ -259,11 +267,12 @@ fun Poster(
 /** Fade + slide-up entrance, delayed by [index] (nice staggered intro for tiles / cards). */
 @Composable
 fun StaggerIn(index: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    var vis by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(70L * index); vis = true }
+    val tv = LocalTv.current
+    var vis by remember { mutableStateOf(tv) }   // TV: visible immediately, no entrance animation
+    LaunchedEffect(Unit) { if (!tv) { delay(70L * index); vis = true } }
     AnimatedVisibility(
         visible = vis, modifier = modifier,
-        enter = fadeIn(tween(380)) + slideInVertically(tween(380)) { it / 6 }
+        enter = if (tv) EnterTransition.None else fadeIn(tween(380)) + slideInVertically(tween(380)) { it / 6 }
     ) { content() }
 }
 

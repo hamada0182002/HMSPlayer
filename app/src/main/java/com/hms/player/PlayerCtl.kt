@@ -90,6 +90,10 @@ class PlayerCtl(
     private var stableSince = 0L
 
     init {
+        // subtitles OFF by default (turn them on from the subtitles button when needed)
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .build()
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING

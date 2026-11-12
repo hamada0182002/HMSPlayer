@@ -1,7 +1,9 @@
 package com.hms.player
 
 import android.net.Uri
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -88,9 +90,12 @@ object Api {
     }
 
     suspend fun categories(a: Account, s: Section): List<Category> {
-        val arr = JSONArray(fetch(apiUrl(a, action(s).first), 60))
-        return (0 until arr.length()).mapNotNull { i ->
-            arr.optJSONObject(i)?.let { Category(it.str("category_id"), it.str("category_name")) }
+        val txt = fetch(apiUrl(a, action(s).first), 60)
+        return withContext(Dispatchers.Default) {
+            val arr = JSONArray(txt)
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { Category(it.str("category_id"), it.str("category_name")) }
+            }
         }
     }
 
@@ -98,25 +103,28 @@ object Api {
     suspend fun items(a: Account, s: Section, catId: String?): List<Item> {
         val extra = if (catId == null) "" else "&category_id=${enc(catId)}"
         val txt = fetch(apiUrl(a, action(s).second, extra), if (catId == null) 300 else 120)
-        val arr = JSONArray(txt)
-        val out = ArrayList<Item>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            out += when (s) {
-                Section.LIVE -> Item(o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s)
-                Section.VOD -> Item(
-                    o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s,
-                    rating = o.str("rating"), ext = o.str("container_extension").ifBlank { "mp4" },
-                    added = o.str("added").toLongOrNull() ?: 0
-                )
-                Section.SERIES -> Item(
-                    o.str("series_id"), o.str("name"), o.str("cover").ifBlank { null }, s,
-                    rating = o.str("rating"), plot = o.str("plot"),
-                    added = o.str("last_modified").toLongOrNull() ?: o.str("added").toLongOrNull() ?: 0
-                )
+        // parsing a big list is CPU heavy: never do it on the main thread
+        return withContext(Dispatchers.Default) {
+            val arr = JSONArray(txt)
+            val out = ArrayList<Item>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out += when (s) {
+                    Section.LIVE -> Item(o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s)
+                    Section.VOD -> Item(
+                        o.str("stream_id"), o.str("name"), o.str("stream_icon").ifBlank { null }, s,
+                        rating = o.str("rating"), ext = o.str("container_extension").ifBlank { "mp4" },
+                        added = o.str("added").toLongOrNull() ?: 0
+                    )
+                    Section.SERIES -> Item(
+                        o.str("series_id"), o.str("name"), o.str("cover").ifBlank { null }, s,
+                        rating = o.str("rating"), plot = o.str("plot"),
+                        added = o.str("last_modified").toLongOrNull() ?: o.str("added").toLongOrNull() ?: 0
+                    )
+                }
             }
+            out
         }
-        return out
     }
 
     private fun meta(r: String, y: String, g: String, du: String): String {

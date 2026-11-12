@@ -48,7 +48,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 
 @Composable
 private fun Cover(img: String?, title: String, modifier: Modifier) {
@@ -70,13 +73,16 @@ fun MovieScreen(vm: AppVM, item: Item) {
     val play = vm.playItemFor(item)
     val pr = vm.progressOf(play.key)
     val resumable = pr != null && !pr.done && pr.pos > 15_000
+    val tv = LocalTv.current
+    val playFr = remember { FocusRequester() }
+    LaunchedEffect(Unit) { if (tv) { delay(250); runCatching { playFr.requestFocus() } } }
 
     val buttons: @Composable () -> Unit = {
         if (resumable) {
-            HmsButton("كمّل من ${fmtTime(pr!!.pos)}", icon = Icons.Default.PlayArrow) { vm.openPlayer(listOf(play), 0) }
+            HmsButton("كمّل من ${fmtTime(pr!!.pos)}", icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0) }
             HmsButton("من البداية", icon = Icons.Default.Replay, primary = false) { vm.openPlayer(listOf(play), 0, fromStart = true) }
         } else {
-            HmsButton("تشغيل", icon = Icons.Default.PlayArrow) { vm.openPlayer(listOf(play), 0, fromStart = true) }
+            HmsButton("تشغيل", icon = Icons.Default.PlayArrow, focusRequester = playFr) { vm.openPlayer(listOf(play), 0, fromStart = true) }
         }
     }
     val meta = info?.meta?.ifBlank { null } ?: item.rating?.takeIf { (it.toFloatOrNull() ?: 0f) > 0f }?.let { "التقييم: $it/10" }

@@ -3,6 +3,8 @@ package com.hms.player
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -48,10 +50,13 @@ import kotlinx.coroutines.delay
 @Composable
 fun HmsApp(vm: AppVM) {
     HmsTheme {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        CompositionLocalProvider(
+            LocalLayoutDirection provides LayoutDirection.Rtl,
+            LocalTv provides (vm.deviceMode == DeviceMode.TV)
+        ) {
             Surface(Modifier.fillMaxSize(), color = Bg, contentColor = TextMain) {
                 var splash by remember { mutableStateOf(true) }
-                LaunchedEffect(Unit) { delay(1500); splash = false }
+                LaunchedEffect(Unit) { delay(if (vm.deviceMode == DeviceMode.TV) 800 else 1500); splash = false }
 
                 // phone: app is vertical, playback is horizontal. TV: everything horizontal.
                 val act = LocalContext.current.findActivity()
@@ -69,7 +74,10 @@ fun HmsApp(vm: AppVM) {
                         modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                         targetState = vm.stack.last(),
                         transitionSpec = {
-                            if (vm.forward)
+                            if (vm.deviceMode == DeviceMode.TV)
+                                // TV: instant switch (animating two heavy screens at once is slow on weak boxes)
+                                EnterTransition.None togetherWith ExitTransition.None
+                            else if (vm.forward)
                                 (slideInHorizontally(tween(320)) { -it / 4 } + fadeIn(tween(320))) togetherWith
                                     (slideOutHorizontally(tween(320)) { it / 4 } + fadeOut(tween(200)))
                             else

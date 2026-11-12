@@ -39,6 +39,9 @@ class AppVM(app: Application) : AndroidViewModel(app) {
     val stack = mutableStateListOf<Screen>()
     var forward = true
 
+    /** last selected category index per section (so coming back from a movie keeps your place). */
+    val catSel = HashMap<Section, Int>()
+
     private val catCache = HashMap<String, List<Category>>()
     private val itemCache = LinkedHashMap<String, List<Item>>()
     private val gridStates = HashMap<String, LazyGridState>()
@@ -47,6 +50,7 @@ class AppVM(app: Application) : AndroidViewModel(app) {
     init {
         // silent update check at launch: if a newer release exists, a dialog is shown
         viewModelScope.launch {
+            delay(6_000) // don't compete with the first screen on slow TVs
             try { pendingUpdate = Updater.check(app) } catch (e: Exception) { /* offline / not configured: ignore */ }
         }
         val a = accounts.firstOrNull { it.id == store.activeId } ?: accounts.firstOrNull()
@@ -62,7 +66,7 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         active = a
         store.activeId = a.id
         info = null
-        catCache.clear(); itemCache.clear(); gridStates.clear(); listStates.clear()
+        catCache.clear(); itemCache.clear(); gridStates.clear(); listStates.clear(); catSel.clear()
         forward = true
         stack.clear(); stack.add(Screen.Home)
         viewModelScope.launch { info = try { Api.info(a) } catch (e: Exception) { null } }
