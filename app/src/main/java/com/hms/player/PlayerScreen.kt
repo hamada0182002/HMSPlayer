@@ -94,6 +94,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -110,12 +111,15 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     var dialog by remember { mutableStateOf<String?>(null) }
     var drag by remember { mutableStateOf<Float?>(null) }
     var seekFocused by remember { mutableStateOf(false) }
+    var topFocused by remember { mutableStateOf(false) }
+    val topFr = remember { FocusRequester() }
     val appear = remember { Animatable(0f) }
 
     fun poke() { interaction++ }
     fun reveal(byKey: Boolean) { show = true; poke(); if (byKey) focusPlay++ }
 
-    BackHandler(true) { ctl.close() }
+    // TV remote: first Back hides the controls (if visible), second Back leaves the channel / movie
+    BackHandler(true) { if (tv && show) show = false else ctl.close() }
 
     DisposableEffect(ctl) {
         ctl.start()
@@ -127,7 +131,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
     // controls hidden -> root gets the keys; controls shown (TV) -> focus sits on play/pause,
     // so OK = pause/play and left / right move to the buttons beside it.
     LaunchedEffect(show) {
-        if (!show) runCatching { rootFr.requestFocus() }
+        if (!show) { topFocused = false; runCatching { rootFr.requestFocus() } }
         else if (tv) { delay(150); runCatching { playFr.requestFocus() } }
     }
     LaunchedEffect(focusPlay) { if (focusPlay > 0) { delay(90); runCatching { playFr.requestFocus() } } }
@@ -163,6 +167,20 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                     if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     poke()
                     val live = ctl.cur.live
+                    // LIVE: up / down always switch the channel (key repeat ignored so the server isn't hammered)
+                    if (live && !topFocused && (ev.key == Key.DirectionUp || ev.key == Key.DirectionDown)) {
+                        if (ev.nativeKeyEvent.repeatCount == 0) {
+                            if (ev.key == Key.DirectionUp) ctl.prev() else ctl.next()
+                            reveal(false)
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                    // LIVE: Menu key = jump to the top buttons (audio / subtitles / size) since up/down change channel
+                    if (live && ev.key == Key.Menu) {
+                        show = true
+                        scope.launch { delay(200); runCatching { topFr.requestFocus() } }
+                        return@onPreviewKeyEvent true
+                    }
                     when (ev.key) {
                         Key.MediaPlayPause -> { ctl.toggle(); true }
                         Key.MediaPlay -> { ctl.playNow(); true }
@@ -225,7 +243,8 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
                     // top bar
                     Row(
-                        Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+                            .onFocusChanged { topFocused = it.hasFocus },
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "رجوع") { ctl.close() }
@@ -234,7 +253,7 @@ fun PlayerScreen(vm: AppVM, req: PlayerRequest) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                         )
                         if (ctl.videoSize.isNotEmpty()) Text(ctl.videoSize, color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
-                        IconBtn(Icons.Default.Audiotrack, "الصوت") { dialog = "audio" }
+                        IconBtn(Icons.Default.Audiotrack, "الصوت", focusRequester = topFr) { dialog = "audio" }
                         IconBtn(Icons.Default.Subtitles, "الترجمة") { dialog = "text" }
                         IconBtn(Icons.Default.AspectRatio, "حجم الصورة") { ctl.cycleResize() }
                         if (!ctl.cur.live) IconBtn(Icons.Default.Speed, "السرعة") { dialog = "speed" }
