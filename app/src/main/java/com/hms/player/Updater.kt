@@ -14,7 +14,14 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
+import javax.net.ssl.SSLException
 
 /**
  * >>> غيّر السطر ده مرة واحدة فقط: اسم حسابك على GitHub / اسم المستودع <<<
@@ -26,11 +33,56 @@ data class UpdateInfo(val version: String, val notes: String, val apkUrl: String
 
 /** In-app updater: reads the latest GitHub Release, downloads its .apk and opens the installer. */
 object Updater {
-    private val client = OkHttpClient.Builder()
+    private fun baseBuilder() = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)
-        .build()
+
+    @Volatile private var client: OkHttpClient = baseBuilder().build()
+    @Volatile private var clientReady = false
+
+    /**
+     * Old TVs (Android 7 and below) don't know GitHub's newer root certificates, so https fails.
+     * Fix: trust the phone's own certificates PLUS an up-to-date Mozilla root list bundled in the app
+     * (res/raw/cacert.pem). Certificates are still fully validated - nothing is disabled.
+     */
+    private fun ensureClient(ctx: Context) {
+        if (clientReady) return
+        synchronized(this) {
+            if (clientReady) return
+            try {
+                val ks = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null, null) }
+                var n = 0
+                // 1) the system store
+                try {
+                    val sys = KeyStore.getInstance("AndroidCAStore").apply { load(null) }
+                    for (a in sys.aliases()) sys.getCertificate(a)?.let { ks.setCertificateEntry("sys${n++}", it) }
+                } catch (e: Exception) { /* ignore */ }
+                // 2) bundled up-to-date roots
+                ctx.applicationContext.resources.openRawResource(R.raw.cacert).use { input ->
+                    CertificateFactory.getInstance("X.509").generateCertificates(input)
+                        .forEach { ks.setCertificateEntry("app${n++}", it) }
+                }
+                val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(ks) }
+                val tm = tmf.trustManagers.filterIsInstance<X509TrustManager>().first()
+                val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), null) }
+                client = baseBuilder().sslSocketFactory(ssl.socketFactory, tm).build()
+            } catch (e: Exception) { /* keep the default client */ }
+            clientReady = true
+        }
+    }
+
+    /** GitHub is https-only, so "try http" is not an option here: explain the real causes instead. */
+    private fun exec(req: Request) = try {
+        client.newCall(req).execute()
+    } catch (e: SSLException) {
+        val d = ((e.cause ?: e).message ?: e.javaClass.simpleName).take(140)
+        throw IOException(
+            "مشكلة في شهادة الأمان (https) مع GitHub.\n" +
+            "غالباً تاريخ/وقت التلفزيون غلط: اضبطهم على \"تلقائي\" من إعدادات التلفزيون وجرب تاني.\n" +
+            "ولو مضبوطين يبقى نظام التلفزيون قديم، ثبّت التحديث بفلاشة USB.\n[$d]"
+        )
+    }
 
     fun currentVersion(ctx: Context): String = try {
         ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0.0"
@@ -51,6 +103,7 @@ object Updater {
 
     /** null = already on the latest version. */
     suspend fun check(ctx: Context): UpdateInfo? = withContext(Dispatchers.IO) {
+        ensureClient(ctx)
         if (GITHUB_REPO.startsWith("OWNER")) {
             throw IOException("لسه ما اتحددش مصدر التحديثات (GITHUB_REPO جوه ملف Updater.kt).")
         }
@@ -59,7 +112,7 @@ object Updater {
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", UA)
             .build()
-        client.newCall(req).execute().use { r ->
+        exec(req).use { r ->
             if (r.code == 404) throw IOException("مفيش إصدارات منشورة لسه.")
             if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
             val j = JSONObject(r.body!!.string())
@@ -87,10 +140,11 @@ object Updater {
 
     suspend fun download(ctx: Context, info: UpdateInfo, onProgress: (Float) -> Unit): File =
         withContext(Dispatchers.IO) {
+            ensureClient(ctx)
             val dir = File(ctx.cacheDir, "updates").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
             val f = File(dir, "HMS-Player-${info.version}.apk")
             val req = Request.Builder().url(info.apkUrl).header("User-Agent", UA).build()
-            client.newCall(req).execute().use { r ->
+            exec(req).use { r ->
                 if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
                 val body = r.body!!
                 val total = body.contentLength().takeIf { it > 0 } ?: info.size
